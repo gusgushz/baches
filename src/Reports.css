@@ -1,0 +1,56 @@
+/* Migrated styles for Reports from EBY/src/styles.css */
+:root{
+	--bg: #fff;
+	--fg: #000;
+	--muted: #666;
+}
+*{box-sizing:border-box}
+
+.report-list ul{list-style:none;padding:0;margin:8px 0}
+.report-item{border:1px solid #000;padding:8px;margin-bottom:8px;background:var(--bg)}
+.report-item.low{border-left:6px solid #666}
+.report-item.medium{border-left:6px solid #000}
+.report-item.high{border-left:6px solid #000}
+.report-item .meta{display:flex;justify-content:space-between;font-size:0.85rem;color:var(--muted)}
+
+.report-controls{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.report-controls select{padding:6px;border:1px solid #ddd;border-radius:6px}
+.report-controls small{color:var(--muted);font-size:0.85rem}
+
+.map-placeholder{border:1px dashed #000;padding:8px;text-align:center}
+.map-inner{height:220px;background:#f8f8f8;color:#000;display:flex;align-items:center;justify-content:center}
+
+.photo-thumb img{max-width:120px;height:auto;border:1px solid #000;margin-top:6px;cursor:pointer}
+.image-row .photo-thumb img{max-width:140px;height:auto;border:1px solid #ddd;background:#fff}
+.image-modal{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;padding:24px;z-index:9999}
+.image-modal img{max-width:100%;max-height:100%;border:4px solid #fff}
+
+.status-badge{padding:4px 8px;border-radius:6px;background:#eee;color:#222;font-weight:700;font-size:0.75rem}
+.status-badge.reported{background:#ffd; color:#444}
+.status-badge.in_progress{background:#def; color:#045}
+.status-badge.resolved{background:#e6f6e9; color:#0b672a}
+
+.comments{margin-top:6px;color:#222}
+.address{font-size:0.95rem;color:#444;margin-top:6px}
+.location{font-size:0.9rem;color:var(--muted);margin-top:6px}
+
+.report-section{display:flex;gap:16px;align-items:flex-start}
+.report-list-column{flex:1;min-width:200px;max-height:calc(100vh - 220px);overflow-y:auto;overflow-x:hidden;padding-right:8px}
+.report-map-column{flex:0 0 48%;width:48%;max-width:640px;box-sizing:border-box}
+.report-map-column .map-placeholder{width:100%;aspect-ratio:1/1;max-height:calc(100vh - 160px);height:auto;overflow:hidden;display:block;max-width:100%;box-sizing:border-box}
+.report-map-column .map-placeholder .leaflet-container{height:100% !important;width:100% !important;max-width:100%}
+
+/* Force report item text to wrap instead of expanding horizontally */
+.report-item, .report-item .desc, .report-item .address, .report-item .comments { word-break: break-word; overflow-wrap: anywhere; }
+
+@media (max-width:900px){
+	.report-section{flex-direction:column}
+	.report-map-column{width:100%;max-width:100%}
+	.report-list-column{max-height:none}
+}
+
+.muted{color:var(--muted);font-size:0.9rem}
+.small{background:#f0f0f0;color:#333;padding:8px;border:1px solid #ddd;cursor:pointer;border-radius:6px}
+
+/* End migrated styles */
+
