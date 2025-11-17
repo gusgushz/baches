@@ -8,7 +8,6 @@ import {
   EmployeesScreen,
   ErrorScreen,
   LoginScreen,
-  RegisterScreen,
   ReportsScreen,
   SettingsScreen,
   VehiclesScreen,

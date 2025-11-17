@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
+import 'leaflet/dist/leaflet.css'
 import '../Reports.css'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -335,9 +337,58 @@ export default function ReportsScreen() {
   }
 
   return (
-    <div>
+    <div className="page">
       <h1>Reportes</h1>
-      {loading ? <p>Cargando...</p> : <ReportList reports={reports} onDelete={handleDelete} />}
+      {loading && <p>Cargando...</p>}
+      <div className="report-section">
+        <div className="report-list-column">
+          {!loading && <ReportList reports={reports} onDelete={handleDelete} />}
+        </div>
+
+        <div className="report-map-column">
+          <div className="map-placeholder">
+            {reports.length === 0 && !loading && (
+              <div className="map-inner">No hay ubicaciones para mostrar</div>
+            )}
+            {reports.length >= 0 && (
+              <MapContainer
+                center={[21.02470634812052, -89.6220316074694]}
+                zoom={10}
+                style={{ height: '100%', width: '100%', display: 'block' }}
+                scrollWheelZoom={true}
+                zoomControl={true}
+                attributionControl={true}
+              >
+                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
+                <MapResizeFix />
+                {reports.map((r) => (
+                  r.location ? (
+                    <Marker key={r.id} position={[r.location.lat, r.location.lng]}>
+                      <Popup>
+                        <div style={{ minWidth: 200 }}>
+                          <strong>{r.severity}</strong>
+                          <div>{r.description}</div>
+                          <div style={{ fontSize: 12, color: '#666' }}>{formatDate(r.createdAt)}</div>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  ) : null
+                ))}
+              </MapContainer>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   )
+}
+
+// Helper component: forces a map.invalidateSize() after mount to fix render issues
+function MapResizeFix() {
+  const map = useMap()
+  useEffect(() => {
+    const t = setTimeout(() => { try { map.invalidateSize() } catch (e) { /* ignore */ } }, 200)
+    return () => clearTimeout(t)
+  }, [map])
+  return null
 }
