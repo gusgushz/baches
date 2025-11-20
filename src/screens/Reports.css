@@ -77,3 +77,48 @@
 
 /* End improved styles */
 
+/* Custom scrollbar to match the UI (applies to report list column and page as fallback) */
+/* Firefox */
+.report-list-column, .report-list {
+	scrollbar-width: thin;
+	scrollbar-color: rgba(16,24,40,0.18) transparent;
+}
+
+/* WebKit (Chrome, Edge, Safari) */
+.report-list-column::-webkit-scrollbar,
+.report-list::-webkit-scrollbar,
+.report-section::-webkit-scrollbar,
+.page::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+
+.report-list-column::-webkit-scrollbar-track,
+.report-list::-webkit-scrollbar-track,
+.page::-webkit-scrollbar-track {
+	background: transparent;
+	border-radius: 999px;
+}
+
+.report-list-column::-webkit-scrollbar-thumb,
+.report-list::-webkit-scrollbar-thumb,
+.page::-webkit-scrollbar-thumb {
+	background: rgba(16,24,40,0.12);
+	border-radius: 999px;
+	border: 2px solid rgba(255,255,255,0.85);
+}
+
+.report-list-column::-webkit-scrollbar-thumb:hover,
+.report-list::-webkit-scrollbar-thumb:hover,
+.page::-webkit-scrollbar-thumb:hover {
+	background: rgba(16,24,40,0.2);
+}
+
+/* Optional: use accent color variant — uncomment to enable */
+/*
+.report-list-column::-webkit-scrollbar-thumb {
+	background: rgba(16,185,129,0.16);
+	border: 2px solid rgba(255,255,255,0.9);
+}
+*/
+

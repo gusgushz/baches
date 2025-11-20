@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
-import '../Reports.css'
+import './Reports.css'
 import { useAuth } from '../contexts/AuthContext'
 
 type Location = { lat: number; lng: number }
@@ -273,7 +273,10 @@ export default function ReportsScreen() {
     try {
       const headers: Record<string,string> = { 'Content-Type': 'application/json' }
       if (token) headers['Authorization'] = `Bearer ${token}`
-      const res = await fetch(buildApiUrl('/reports'), { headers })
+      // Request a large limit to try to retrieve all reports from the backend
+      // (some backends default to 10 items per page). If the backend doesn't
+      // support `limit`, this will simply be ignored by the server.
+      const res = await fetch(buildApiUrl('/reports?limit=100000'), { headers })
       if (!res.ok) {
         const body = await res.text().catch(() => '')
         console.warn('Carga de reportes respondio:', res.status, body)

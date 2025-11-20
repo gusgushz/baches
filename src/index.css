@@ -24,8 +24,9 @@ a:hover {
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
+  /* Keep body as a normal block so the app root can expand to full width.
+     Having `display:flex` here caused the layout to shrink/center in some
+     situations which made the UI appear stuck to the left. */
   min-width: 320px;
   min-height: 100vh;
 }
