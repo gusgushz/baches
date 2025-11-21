@@ -34,6 +34,8 @@ export default function AssignmentsScreen() {
   const [vehiclesList, setVehiclesList] = useState<Array<any>>([])
   const [selectedWorker, setSelectedWorker] = useState<any | null>(null)
   const [selectedVehicle, setSelectedVehicle] = useState<any | null>(null)
+  const [createLoadingWorkers, setCreateLoadingWorkers] = useState(false)
+  const [createLoadingVehicles, setCreateLoadingVehicles] = useState(false)
 
   if (!user) return null
 
@@ -90,6 +92,14 @@ export default function AssignmentsScreen() {
   }
 
   useEffect(() => { load() }, [user, token])
+  // prefetch workers and vehicles so lists are available before the modal opens
+  useEffect(() => {
+    if (!user) return
+    ;(async () => {
+      try { await fetchWorkers() } catch {};
+      try { await fetchVehicles() } catch {};
+    })()
+  }, [user, token])
 
   const handleCreate = async () => {
     setSubmitting(true)
@@ -174,6 +184,7 @@ export default function AssignmentsScreen() {
     try {
       const headers: Record<string,string> = { 'Content-Type': 'application/json' }
       if (token) headers['Authorization'] = `Bearer ${token}`
+      setCreateLoadingWorkers(true)
       const candidates = ['/workers', '/users', '/employees', '/people']
       for (const p of candidates) {
         try {
@@ -201,12 +212,14 @@ export default function AssignmentsScreen() {
       setWorkersList(fallbackWorkers)
       return fallbackWorkers
     } catch (e) { console.error('fetchWorkers', e); setWorkersList([]); return [] }
+    finally { setCreateLoadingWorkers(false) }
   }
 
   const fetchVehicles = async () => {
     try {
       const headers: Record<string,string> = { 'Content-Type': 'application/json' }
       if (token) headers['Authorization'] = `Bearer ${token}`
+      setCreateLoadingVehicles(true)
       const res = await fetch(buildApiUrl('/vehicles'), { headers })
       if (!res.ok) { setVehiclesList([]); return [] }
       const data = await res.json().catch(() => null)
@@ -214,6 +227,7 @@ export default function AssignmentsScreen() {
       setVehiclesList(list)
       return list
     } catch (e) { console.error('fetchVehicles', e); setVehiclesList([]); return [] }
+    finally { setCreateLoadingVehicles(false) }
   }
 
   const findAssignedVehicleFor = (worker: any) => {
@@ -238,8 +252,12 @@ export default function AssignmentsScreen() {
     setSelectedVehicle(null)
     setCreateStep('selectWorker')
     setCreating(true)
-    await fetchWorkers()
-    await fetchVehicles()
+    setCreateLoadingWorkers(true)
+    setCreateLoadingVehicles(true)
+    try { await fetchWorkers() } catch {}
+    finally { setCreateLoadingWorkers(false) }
+    try { await fetchVehicles() } catch {}
+    finally { setCreateLoadingVehicles(false) }
   }
 
   return (
@@ -309,7 +327,8 @@ export default function AssignmentsScreen() {
                   {createStep === 'selectWorker' && (
                     <div>
                       <div style={{ marginBottom: 8, fontWeight: 600 }}>Selecciona un trabajador</div>
-                      {workersList.length === 0 && <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>No se han encontrado trabajadores.</div>}
+                      {createLoadingWorkers && <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>Cargando trabajadores…</div>}
+                      {!createLoadingWorkers && workersList.length === 0 && <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>No se han encontrado trabajadores.</div>}
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 8 }}>
                         {workersList.map((w:any) => {
                           const assignedVeh = findAssignedVehicleFor(w)
@@ -332,7 +351,8 @@ export default function AssignmentsScreen() {
                   {createStep === 'selectVehicle' && (
                     <div>
                       <div style={{ marginBottom: 8, fontWeight: 600 }}>Selecciona un vehículo</div>
-                      {vehiclesList.length === 0 && <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>No hay vehículos disponibles.</div>}
+                      {createLoadingVehicles && <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>Cargando vehículos…</div>}
+                      {!createLoadingVehicles && vehiclesList.length === 0 && <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>No hay vehículos disponibles.</div>}
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 8 }}>
                         {vehiclesList.map((v:any) => (
                           <div key={v.id || v._id || v.licensePlate} onClick={() => setSelectedVehicle(v)} style={{ padding: 8, border: selectedVehicle && (selectedVehicle.id === (v.id || v._id) || selectedVehicle.licensePlate === v.licensePlate) ? '2px solid #0b4ea2' : '1px solid #e6e9ee', borderRadius: 6, cursor: 'pointer' }}>
