@@ -57,22 +57,28 @@ createRoot(document.getElementById("root")!).render(
   </StrictMode>
 );
 
-// Register service worker for PWA (served from /sw.js in public)
+// Register service worker in production-like environments if supported
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').then(reg => {
-      console.log('ServiceWorker registration successful with scope: ', reg.scope);
+    const swUrl = '/sw.js'
+    navigator.serviceWorker.register(swUrl).then(reg => {
+      console.log('ServiceWorker registrado:', reg.scope)
+      reg.addEventListener('updatefound', () => {
+        const installing = reg.installing
+        if (installing) {
+          installing.addEventListener('statechange', () => {
+            if (installing.state === 'installed') {
+              if (navigator.serviceWorker.controller) {
+                console.log('Nuevo contenido disponible; refresca para usarlo.')
+              } else {
+                console.log('Contenido en cache listo para uso offline.')
+              }
+            }
+          })
+        }
+      })
     }).catch(err => {
-      console.warn('ServiceWorker registration failed: ', err);
-    });
-  });
-
-  // Optional: capture beforeinstallprompt to show custom UI later
-  window.addEventListener('beforeinstallprompt', (e: any) => {
-    // Prevent the mini-infobar from appearing on mobile
-    e.preventDefault();
-    // You could store `e` and trigger e.prompt() from a custom install button
-    (window as any).__deferredPWAInstall = e;
-    console.log('beforeinstallprompt captured, store event to trigger later');
-  });
+      console.warn('Registro de ServiceWorker falló:', err)
+    })
+  })
 }

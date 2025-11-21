@@ -1,60 +1,68 @@
-const CACHE_NAME = 'baches-static-v1';
-const OFFLINE_URL = '/offline.html';
-
+const CACHE_NAME = 'baches-cache-v1';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
-  '/offline.html',
-  '/src/main.tsx'
+  '/manifest.json',
+  '/vite.svg',
+  '/icons/icon-192.svg',
+  '/icons/icon-512.svg'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_URLS).catch(() => {
-        // swallow errors for optional files
-      });
-    }).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS)).then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => Promise.all(
-      keys.map((k) => {
-        if (k !== CACHE_NAME) return caches.delete(k);
-        return Promise.resolve(true);
-      })
+      keys.map(k => { if (k !== CACHE_NAME) return caches.delete(k); return null; })
     )).then(() => self.clients.claim())
   );
 });
 
+// Simple runtime caching strategy:
+// - navigation requests: network-first, fallback to cached index.html
+// - /api/ requests: network-first
+// - other requests (static): cache-first
 self.addEventListener('fetch', (event) => {
   const req = event.request;
-  // Always try network first for navigation (to get updates), fallback to cache/offline
-  if (req.mode === 'navigate') {
+  const url = new URL(req.url);
+
+  // Only handle same-origin requests
+  if (url.origin !== self.location.origin) return;
+
+  // Navigation (SPA)
+  if (req.mode === 'navigate' || (req.method === 'GET' && req.headers.get('accept')?.includes('text/html'))) {
     event.respondWith(
       fetch(req).then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(req, copy)).catch(()=>{})
+        // update cache with latest index.html
+        caches.open(CACHE_NAME).then(cache => cache.put('/index.html', res.clone()));
         return res;
-      }).catch(() => caches.match(OFFLINE_URL))
+      }).catch(() => caches.match('/index.html'))
     );
     return;
   }
 
-  // For other requests, try cache first
+  // API requests -> network-first
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(
+      fetch(req).then(res => {
+        return res;
+      }).catch(() => caches.match(req))
+    );
+    return;
+  }
+
+  // Static assets -> cache-first
   event.respondWith(
-    caches.match(req).then((cached) => cached || fetch(req).then((res) => {
-      // cache JS/CSS for offline
-      if (req.method === 'GET' && res && res.type === 'basic') {
-        const copy = res.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(req, copy)).catch(()=>{});
-      }
+    caches.match(req).then(cached => cached || fetch(req).then(res => {
+      // put into cache for future
+      caches.open(CACHE_NAME).then(cache => {
+        try { cache.put(req, res.clone()); } catch (e) { /* ignore */ }
+      });
       return res;
-    })).catch(() => {
-      // fallback to cache for images or return nothing
-      return caches.match(OFFLINE_URL);
-    })
+    }).catch(() => null))
   );
 });
