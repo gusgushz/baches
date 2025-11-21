@@ -1,0 +1,10 @@
+.assignments-page{padding:16px}
+.assignments-controls{margin-bottom:12px}
+.assignment-list ul{list-style:none;padding:0;margin:0}
+.assignment-item{background:#fbfcfd;border:1px solid #e6e9ee;padding:12px;border-radius:8px;margin-bottom:10px}
+.assignment-title{font-weight:700;color:#111}
+.assignment-meta{font-size:0.9rem;color:#6b7280;margin-top:6px}
+
+@media (max-width:1000px){
+  .assignments-page{padding:12px}
+}

@@ -1,0 +1,49 @@
+.auth-logo{
+  display:block;
+  margin:0 auto 8px;
+  width:220px;        /* preferred display width */
+  max-width:100%;
+  height:auto;        /* preserve aspect ratio and avoid cropping */
+  max-height:120px;   /* cap height to keep layout stable */
+  object-fit:contain; /* ensure entire image is visible */
+  border-radius:6px;
+  border:1px solid #ddd;
+}
+
+/* Auth card styles (copied from frontend design to preserve look) */
+.auth-page{display:flex;align-items:center;justify-content:center;height:88vh;padding:18px}
+.auth-card{width:360px;border:1px solid #e6e6e6;padding:22px;background:#fff;border-radius:8px;box-shadow:0 6px 18px rgba(25,25,25,0.06)}
+.auth-header{display:flex;flex-direction:column;justify-content:center;align-items:center;margin-bottom:14px;gap:6px}
+.auth-header h3{margin:0;text-align:center;font-weight:700}
+.muted{color:var(--muted);font-size:0.9rem}
+.link{background:none;border:none;color:#19b5a7;cursor:pointer;padding:0}
+.auth-body{padding:6px 0}
+.auth-form{display:flex;flex-direction:column;gap:12px}
+.input{padding:12px;border:1px solid #e0e0e0;border-radius:6px;background:#fafafa}
+.input{color: #111; caret-color: #111}
+.input:focus{outline: none; border-color: #cbd5e1; box-shadow: 0 0 0 3px rgba(20,179,154,0.08)}
+
+/* Fix browser autofill which can make text invisible (Chrome / WebKit)
+   Ensure the filled background and text color match design */
+input:-webkit-autofill,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: #111 !important;
+  -webkit-box-shadow: 0 0 0 1000px #fafafa inset !important;
+  box-shadow: 0 0 0 1000px #fafafa inset !important;
+}
+
+/* On some browsers the placeholder color is too light; ensure visibility */
+.input::placeholder{color: rgba(0,0,0,0.45)}
+.checkbox{font-size:0.95rem;display:flex;align-items:center;gap:8px}
+.primary-btn{background:#14b39a;color:#fff;border:none;padding:12px 14px;font-weight:700;cursor:pointer;border-radius:6px;width:100%;box-shadow:0 2px 0 rgba(0,0,0,0.04)}
+.auth-footer{text-align:center;margin-top:10px}
+.auth-card .form-error{background:#f8d7da;color:#842029;padding:8px;margin-bottom:8px;border:1px solid #f5c2c7;border-radius:6px}
+
+.password-row{display:flex;gap:8px}
+.password-row input{flex:1}
+.small{background:#f0f0f0;color:#333;padding:8px;border:1px solid #ddd;cursor:pointer;border-radius:6px}
+.small:active{transform:translateY(1px)}
+.show-btn{min-width:84px;padding:8px 10px}
+
+.field-error{color:#900;margin-top:4px;font-size:0.9rem}
