@@ -1,4 +1,8 @@
 #root {
   margin: 0;
   padding: 0;
+  /* Ensure root expands to full viewport so child layout (sidebar + content)
+     can take full width and not appear clipped/left-aligned. */
+  width: 100%;
+  min-height: 100vh;
 }

@@ -38,12 +38,20 @@ const IconVehicle = (
   </svg>
 )
 
+const IconAssignments = (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+    <rect x="3" y="4" width="18" height="16" rx="2" stroke="#111" strokeWidth="1.5" />
+    <path d="M8 8h8M8 12h8M8 16h5" stroke="#111" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+)
+
 export const SideBar: React.FC = () => {
   const { logout } = useAuth();
 
   const items: NavItem[] = [
     { to: "/dashboard", label: "Home", icon: IconHome },
     { to: "/reports", label: "Reportes", icon: IconReports },
+    { to: "/assignments", label: "Asignaciones", icon: IconAssignments },
     { to: "/employees", label: "Trabajadores", icon: IconWorkers },
     { to: "/vehicles", label: "Vehículo", icon: IconVehicle },
   ];
