@@ -7,6 +7,13 @@
 	--muted: #6b7280;
 	--accent: #0f766e;
 	--danger: #dc2626;
+
+	/* Chart colors (used in Dashboard) */
+	--chart-success: #10b981; /* green */
+	--chart-warning: #f59e0b; /* amber */
+	--chart-danger: #ef4444;  /* red */
+	--chart-accent: #0f766e;  /* accent/teal */
+	--chart-primary: #3b82f6; /* blue */
 }
 
 *{box-sizing:border-box}
@@ -41,6 +48,9 @@
 .report-item.low{border-left:6px solid #10b981}
 .report-item.medium{border-left:6px solid #f59e0b}
 .report-item.high{border-left:6px solid var(--danger)}
+
+/* Generic panel used by dashboard screens */
+.panel{background:var(--card);border:1px solid var(--border);padding:12px;border-radius:10px;box-shadow:0 1px 4px rgba(16,24,40,0.04)}
 
 .desc{margin:8px 0;color:var(--fg)}
 .comments{margin-top:6px;color:var(--fg)}
