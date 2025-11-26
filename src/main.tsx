@@ -9,6 +9,7 @@ import {
   ErrorScreen,
   LoginScreen,
   ReportsScreen,
+  AssignmentsScreen,
   SettingsScreen,
   VehiclesScreen,
 } from "./screens/";
@@ -33,6 +34,7 @@ createRoot(document.getElementById("root")!).render(
             <Route path="dashboard" element={<DashboardScreen />} />
             <Route path="employees" element={<EmployeesScreen />} />
             <Route path="vehicles" element={<VehiclesScreen />} />
+            <Route path="assignments" element={<AssignmentsScreen />} />
             <Route path="reports" element={<ReportsScreen />} />
             <Route path="settings" element={<SettingsScreen />} />
           </Route>
@@ -54,3 +56,29 @@ createRoot(document.getElementById("root")!).render(
     </BrowserRouter>
   </StrictMode>
 );
+
+// Register service worker in production-like environments if supported
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    const swUrl = '/sw.js'
+    navigator.serviceWorker.register(swUrl).then(reg => {
+      console.log('ServiceWorker registrado:', reg.scope)
+      reg.addEventListener('updatefound', () => {
+        const installing = reg.installing
+        if (installing) {
+          installing.addEventListener('statechange', () => {
+            if (installing.state === 'installed') {
+              if (navigator.serviceWorker.controller) {
+                console.log('Nuevo contenido disponible; refresca para usarlo.')
+              } else {
+                console.log('Contenido en cache listo para uso offline.')
+              }
+            }
+          })
+        }
+      })
+    }).catch(err => {
+      console.warn('Registro de ServiceWorker falló:', err)
+    })
+  })
+}
