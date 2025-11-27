@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -18,6 +17,7 @@ import {
   RadialBar
 } from 'recharts';
 import styles from './Dashboard.module.css';
+import Header from '../components/Header';
 
 type Report = {
   id: string;
@@ -51,12 +51,12 @@ export default function DashboardScreen({
   // 👤 Usuario logueado
   const user = auth.user;
   const displayName = (() => {
-    if (!user) return 'Usuario';
-    const first = [user.name, user.secondName].filter(Boolean).join(' ');
-    const last = [user.lastname, user.secondLastname].filter(Boolean).join(' ');
-    const full = [first, last].filter(Boolean).join(' ').trim();
-    return full || user.email || 'Usuario';
-  })();
+    if (!user) return 'Usuario'
+    const first = [user.name, user.secondName].filter(Boolean).join(' ')
+    const last = [user.lastname, user.secondLastname].filter(Boolean).join(' ')
+    const full = [first, last].filter(Boolean).join(' ').trim()
+    return full || user.email || 'Usuario'
+  })()
 
   // Estado
   const [reports, setReports] = useState<Report[]>(initialReports ?? []);
@@ -83,7 +83,7 @@ export default function DashboardScreen({
         throw new Error(`API ${path} respondió ${res.status}. ${txt}`);
       }
       return await res.json();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(`fetchAll(${path}) error`, err);
       throw err;
     }
@@ -97,10 +97,9 @@ export default function DashboardScreen({
     }
 
     let cancelled = false;
-    setLoading(true);
-    setError(null);
-
-    (async () => {
+    const load = async () => {
+      setLoading(true);
+      setError(null);
       try {
         const r = await fetchAll('reports');
         const arrReports = Array.isArray(r) ? r : (r?.data ?? []);
@@ -124,17 +123,80 @@ export default function DashboardScreen({
         const w = await fetchAll('workers');
         const arrW = Array.isArray(w) ? w : (w?.data ?? []);
         if (!cancelled) setWorkersCount(arrW.length);
+        if (!cancelled) setLastUpdated(new Date().toISOString());
       } catch (e: any) {
-        if (!cancelled) setError(`No se pudieron cargar datos: ${e?.message ?? e}`);
+          if (!cancelled) setError(`No se pudieron cargar datos: ${(e as any)?.message ?? String(e)}`);
       } finally {
         if (!cancelled) setLoading(false);
       }
-    })();
+    };
+
+    // Exponer carga inicial
+    load();
 
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, apiBase, initialReports]);
+
+  // formatea fecha ISO a DD/MM
+  const formatDM = (iso: string) => {
+    try {
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return iso;
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      return `${dd}/${mm}`;
+    } catch (_e: unknown) {
+      return iso;
+    }
+  };
+
+  // Auto-refresh cada 60 segundos
+  useEffect(() => {
+    if (!token) return;
+    const id = setInterval(() => {
+      refreshAll().catch(() => {});
+    }, 60000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  // Función pública para recargar métricas (llamada por el auto-refresh)
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const refreshAll = async () => {
+    if (!token) return;
+    setError(null);
+    try {
+      const r = await fetchAll('reports');
+      const arrReports = Array.isArray(r) ? r : (r?.data ?? []);
+      const normalized: Report[] = arrReports.map((x: any) => ({
+        id: x.id ?? x._id,
+        severity: x.severity ?? 'unknown',
+        status: x.status ?? 'reported',
+        city: x.city ?? x.town ?? x.village ?? 'Sin ciudad',
+        createdAt: x.createdAt ?? x.date ?? new Date().toISOString(),
+      }));
+      setReports(normalized);
+
+      const a = await fetchAll('assignments');
+      const arrA = Array.isArray(a) ? a : (a?.data ?? []);
+      setAssignments(arrA);
+
+      const v = await fetchAll('vehicles');
+      const arrV = Array.isArray(v) ? v : (v?.data ?? []);
+      setVehiclesCount(arrV.length);
+
+      const w = await fetchAll('workers');
+      const arrW = Array.isArray(w) ? w : (w?.data ?? []);
+      setWorkersCount(arrW.length);
+
+      setLastUpdated(new Date().toISOString());
+    } catch (e: any) {
+        setError(`No se pudieron actualizar datos: ${(e as any)?.message ?? String(e)}`);
+    }
+  };
 
   useEffect(() => {
     if (initialReports !== undefined) setReports(initialReports);
@@ -144,6 +206,23 @@ export default function DashboardScreen({
   const totalReports = reports.length;
   const bySeverity = countBy(reports, (r) => r.severity ?? 'unknown');
   const byStatus = countBy(reports, (r) => r.status ?? 'unknown');
+
+  // Función para traducir claves comunes a etiquetas en español
+  const translateLabel = (key: string) => {
+    const k = (key || '').toString();
+    const map: Record<string, string> = {
+      unknown: 'Desconocida',
+      low: 'Baja',
+      medium: 'Media',
+      high: 'Alta',
+      reported: 'Reportado',
+      in_progress: 'En progreso',
+      assigned: 'Asignado',
+      completed: 'Completada',
+      pending: 'Pendiente',
+    };
+    return map[k] ?? (k === '—' ? '—' : k.charAt(0).toUpperCase() + k.slice(1));
+  }
 
   // Tendencia temporal
   const trendMap = new Map<string, number>();
@@ -163,18 +242,55 @@ export default function DashboardScreen({
   const topCitiesData = topCities.map(([city, count]) => ({ city, count }));
 
   // Porcentaje completadas
-  const completed = assignments.filter((a: any) => a.progressStatus === 'completed').length;
+  const completed = assignments.filter((a: Assignment) => a.progressStatus === 'completed').length;
   const totalAssignments = assignments.length;
   const completionPercent = totalAssignments ? Math.round((completed / totalAssignments) * 100) : 0;
   const gaugeData = [{ name: 'Completadas', value: completionPercent }];
 
+  // Métrica adicional: promedio diario de reportes en los últimos N días (por defecto 7)
+  const avgLastNDays = (n: number) => {
+    const today = new Date();
+    const values: number[] = [];
+    for (let i = n - 1; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      values.push(trendMap.get(key) ?? 0);
+    }
+    const sum = values.reduce((s, v) => s + v, 0);
+    return n ? +(sum / n).toFixed(1) : 0;
+  };
+
+  const avg7 = avgLastNDays(7);
+
+  // Datos de los últimos N días (para mostrar detalle en 'Próxima métrica')
+  const lastNDays = (n: number) => {
+    const today = new Date();
+    const arr: { date: string; count: number }[] = [];
+    for (let i = n - 1; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      arr.push({ date: key, count: trendMap.get(key) ?? 0 });
+    }
+    return arr;
+  };
+
+  const last7 = lastNDays(7);
+
   return (
-    <div className={`${styles.page} ${styles.metricsPage}`}>
-      {/* Header con saludo */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <h2 style={{ margin: 0 }}>Dashboard</h2>
-        <div style={{ color: '#64748b', fontWeight: 600 }}>👤 Hola, {displayName}</div>
-      </div>
+    <div className="page metrics-page">
+      <Header
+        title="Inicio"
+        centerSlot={<span>Métricas</span>}
+        rightSlot={
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div className="header-greeting"><span className="avatar">👤</span> Hola, {displayName}</div>
+          </div>
+        }
+      />
+
+      {/* El Header ya muestra título y acciones; saludos integrados en el header */}
 
       {loading && <p>Cargando métricas...</p>}
       {error && <p className="form-error">{error}</p>}
@@ -185,6 +301,7 @@ export default function DashboardScreen({
         <div className={styles.panel}><h3>Vehículos</h3><div className={styles.kpiValue}>{vehiclesCount ?? '—'}</div></div>
         <div className={styles.panel}><h3>Asignaciones</h3><div className={styles.kpiValue}>{totalAssignments}</div></div>
         <div className={styles.panel}><h3>Trabajadores</h3><div className={styles.kpiValue}>{workersCount ?? '—'}</div></div>
+        {/* Promedio 7d movido a 'Próxima métrica' */}
       </div>
 
       {/* Charts */}
@@ -193,7 +310,7 @@ export default function DashboardScreen({
           <h3>Por severidad</h3>
           <ResponsiveContainer width="100%" height={260}>
             <PieChart>
-              <Pie data={bySeverity.map(([name, value]) => ({ name, value }))} dataKey="value" nameKey="name" innerRadius={40} outerRadius={80}>
+              <Pie data={bySeverity.map(([name, value]) => ({ name: translateLabel(name), value }))} dataKey="value" nameKey="name" innerRadius={40} outerRadius={80}>
                 {bySeverity.map(([k], i) => (
                   <Cell key={k} fill={['#10b981', '#f59e0b', '#ef4444'][i % 3]} />
                 ))}
@@ -206,7 +323,7 @@ export default function DashboardScreen({
         <div className={styles.panel}>
           <h3>Por estado</h3>
           <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={byStatus.map(([name, value]) => ({ name, value }))}>
+            <BarChart data={byStatus.map(([name, value]) => ({ name: translateLabel(name), value }))}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" />
               <YAxis allowDecimals={false} />
@@ -244,6 +361,7 @@ export default function DashboardScreen({
           <h3>Asignaciones completadas</h3>
           <ResponsiveContainer width="100%" height={260}>
             <RadialBarChart innerRadius="70%" outerRadius="100%" data={gaugeData} startAngle={90} endAngle={-270}>
+              {/* @ts-expect-error - tipado de Recharts puede diferir; permitimos estas props para renderizar el radial */}
               <RadialBar minAngle={15} background clockWise dataKey="value" fill="#22c55e" />
               <Tooltip />
             </RadialBarChart>
@@ -252,8 +370,35 @@ export default function DashboardScreen({
         </div>
 
         <div className={styles.panel}>
-          <h3>Próxima métrica</h3>
-          <p className="muted">Aquí podemos poner el tiempo medio de resolución, mapa de calor, etc.</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0 }}>Promedio Diario</h3>
+            <div className="muted" style={{ fontSize: 12 }}>
+              {lastUpdated ? `Última actualización: ${formatDM(lastUpdated)} ${new Date(lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Última actualización: —'}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, marginTop: 10, alignItems: 'flex-start' }}>
+            <div style={{ width: 180, minWidth: 140 }}>
+              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 6 }}>Promedio diario (últimos 7 días)</div>
+              <div style={{ fontWeight: 700, fontSize: 18, color: 'var(--accent)' }}>{avg7}</div>
+              <div style={{ height: 70, marginTop: 8 }}>
+                <ResponsiveContainer width="100%" height={70}>
+                  <LineChart data={last7} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+                    <Line type="monotone" dataKey="count" stroke="#0f766e" strokeWidth={2} dot={{ r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div style={{ flex: 1 }}>
+              <div className="muted" style={{ marginBottom: 6 }}>Detalle por día</div>
+              <ul style={{ margin: 0, paddingLeft: 18, columnCount: 1 }}>
+                {last7.map(d => (
+                  <li key={d.date} style={{ fontSize: 13, marginBottom: 4 }}>{formatDM(d.date)} — <strong>{d.count}</strong></li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
     </div>

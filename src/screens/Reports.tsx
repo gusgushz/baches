@@ -4,6 +4,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import './Reports.css'
 import { useAuth } from '../contexts/AuthContext'
+import Header from '../components/Header';
 
 type Location = { lat: number; lng: number }
 
@@ -580,7 +581,16 @@ export default function ReportsScreen() {
 
   return (
     <div className="page">
-      <h1>Reportes</h1>
+      <Header
+        title="Reportes"
+        centerSlot={<input placeholder="Buscar reportes..." style={{ padding: 8, border: '1px solid #e5e7eb', borderRadius: 8 }} />}
+        rightSlot={
+          <>
+            <button className="btn">Nuevo reporte</button>
+            <button className="btn btn-outline">Exportar</button>
+          </>
+        }
+      />
       {loading && <p>Cargando...</p>}
       <div className="report-section">
         <div className="report-list-column">

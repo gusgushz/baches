@@ -3,6 +3,7 @@
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 12px;
 }
+.panel__meta{margin-bottom:12px}
 .vehicle-card {
   border: 1px solid #ddd;
   padding: 12px;
@@ -36,3 +37,6 @@
   max-width: 640px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.2);
 }
+
+/* make inputs in modals a bit wider */
+.modal-content input{padding:8px;border:1px solid #ddd;border-radius:6px}

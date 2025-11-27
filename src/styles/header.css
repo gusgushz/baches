@@ -1,0 +1,47 @@
+/* Header styles used across the app */
+:root{
+  --bg: #ffffff;
+  --border: #e7e7ea;
+  --fg: #0f172a;
+  --muted: #64748b;
+  --accent: #0f766e;
+  --card-radius: 12px;
+}
+
+.app-header{
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  min-height: 60px;
+}
+
+.app-header__left{display:flex;align-items:center;gap:0.75rem}
+.app-header__logo{width:40px;height:40px;object-fit:contain;border-radius:8px}
+.app-header__title{font-size:1.15rem;font-weight:700;color:var(--fg);margin:0}
+
+.app-header__center{display:flex;align-items:center;justify-content:flex-start;gap:0.5rem}
+.app-header__right{display:flex;align-items:center;justify-content:flex-end;gap:0.75rem}
+
+/* search inside header */
+.header-search{display:flex;align-items:center;gap:8px}
+.header-search input{padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:#2f2f2f;color:#fff;min-width:320px}
+
+.header-actions{display:flex;align-items:center;gap:10px}
+.header-actions .card-button{padding:8px 12px;border-radius:8px}
+.header-actions .btn-outline{padding:8px 10px}
+
+/* Buttons used in header */
+.btn{background:var(--accent);color:white;border:none;padding:10px 14px;border-radius:8px;cursor:pointer;font-weight:600}
+.btn:hover{opacity:0.95}
+
+.btn-outline{background:transparent;border:1px solid var(--border);padding:8px 12px;border-radius:8px;color:var(--fg)}
+
+.header-greeting{color:var(--muted);font-weight:600;display:flex;align-items:center;gap:8px}
+.header-greeting .avatar{width:28px;height:28px;border-radius:999px;background:#eee;display:inline-flex;align-items:center;justify-content:center}

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router'
 import { useAuth } from '../contexts/AuthContext'
 import { getVehicles, deleteVehicle, createVehicle} from '../api'
 import './Vehicles.css'
+import Header from '../components/Header';
 
 export default function VehiclesScreen() {
   const { token, isLoading } = useAuth()
@@ -119,100 +120,111 @@ export default function VehiclesScreen() {
   }
 
   return (
-    <div className="panel">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-        <h3>{vehicles === null ? 'Vehículos (cargando...)' : `Vehículos (mostrados: ${filtered.length} / total: ${vehicles.length})`}</h3>
+    <div className="page">
+      <Header
+        title="Vehículos"
+        centerSlot={
+          <div className="header-search">
+            <input
+              placeholder="Buscar vehículos..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+        }
+        rightSlot={
+          <div className="header-actions">
+            <button className="btn-outline">Mantenimiento</button>
+            <button className="card-button" onClick={openCreate}>Agregar vehículo</button>
+          </div>
+        }
+      />
 
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input
-            placeholder="Buscar vehículos..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ padding: '6px 8px' }}
-          />
-          <button className="card-button" onClick={openCreate}>Agregar vehículo</button>
+      <div className="panel">
+        <div className="panel__meta" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          <h3 style={{ margin: 0 }}>{vehicles === null ? 'Vehículos (cargando...)' : `Vehículos (mostrados: ${filtered.length} / total: ${vehicles.length})`}</h3>
         </div>
-      </div>
 
-      {loading && <p>Cargando vehículos...</p>}
-      {error && <p className="form-error">{error}</p>}
+        {loading && <p>Cargando vehículos...</p>}
+        {error && <p className="form-error">{error}</p>}
 
-      <div className="card-grid" style={{ marginTop: 12 }}>
-        {filtered.map(v => (
-          <div key={v.id} className="vehicle-card">
-            <div className="card-title">{safe(v.model)}</div>
-            <div className="card-sub">Placa: {safe(v.licensePlate)}</div>
-            <div className="card-sub">Asignado: {safe(v.assignedTo)}</div>
+        <div className="card-grid" style={{ marginTop: 12 }}>
+          {filtered.map(v => (
+            <div key={v.id} className="vehicle-card">
+              <div className="card-title">{safe(v.model)}</div>
+              <div className="card-sub">Placa: {safe(v.licensePlate)}</div>
+              <div className="card-sub">Asignado: {safe(v.assignedTo)}</div>
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <button className="card-button" onClick={() => setModalVehicle(v)}>Ver más</button>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <button className="card-button" onClick={() => setModalVehicle(v)}>Ver más</button>
+              </div>
+            </div>
+          ))}
+
+          {filtered.length === 0 && !loading && (
+            <p className="muted">No se encontraron vehículos.</p>
+          )}
+        </div>
+
+        {/* Modal de Ver */}
+        {modalVehicle && !isCreating && (
+          <div className="modal-overlay" onClick={() => setModalVehicle(null)}>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+              <h4>{safe(modalVehicle.model)}</h4>
+              <p><strong>Placa:</strong> {safe(modalVehicle.licensePlate)}</p>
+              <p><strong>Año:</strong> {safe(modalVehicle.year)}</p>
+              <p><strong>Color:</strong> {safe(modalVehicle.color)}</p>
+              <p><strong>Coorporacion:</strong> {safe(modalVehicle.corporation)}</p>
+              <p><strong>Estatus:</strong> {safe(modalVehicle.status)}</p>
+
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <button className="delete-btn" onClick={() => handleDelete(modalVehicle.id)}>Eliminar</button>
+                <button className="close-btn" onClick={() => setModalVehicle(null)}>Cerrar</button>
+              </div>
             </div>
           </div>
-        ))}
+        )}
 
-        {filtered.length === 0 && !loading && (
-          <p className="muted">No se encontraron vehículos.</p>
+        {/* Modal de Crear */}
+        {isCreating && (
+          <div className="modal-overlay" onClick={() => setIsCreating(false)}>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+              <h4>Crear vehículo</h4>
+
+              <div style={{ display: 'grid', gap: 8 }}>
+                <label>Placa
+                  <input value={newLicensePlate} onChange={e => setNewLicensePlate(e.target.value)} />
+                </label>
+
+                <label>Modelo
+                  <input value={newModel} onChange={e => setNewModel(e.target.value)} />
+                </label>
+
+                <label>Año
+                  <input type="number" value={newYear ?? ''} onChange={e => setNewYear(e.target.value ? Number(e.target.value) : null)} />
+                </label>
+
+                <label>Color
+                  <input value={newColor ?? ''} onChange={e => setNewColor(e.target.value || null)} />
+                </label>
+
+                <label>Corporación
+                  <input value={newCorporation ?? ''} onChange={e => setNewCorporation(e.target.value || null)} />
+                </label>
+
+                <label>Estatus
+                  <input value={newStatus} onChange={e => setNewStatus(e.target.value)} />
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <button className="card-button" onClick={handleCreate}>Crear</button>
+                <button className="close-btn" onClick={() => setIsCreating(false)}>Cancelar</button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
-
-      {/* Modal de Ver */}
-      {modalVehicle && !isCreating && (
-        <div className="modal-overlay" onClick={() => setModalVehicle(null)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h4>{safe(modalVehicle.model)}</h4>
-            <p><strong>Placa:</strong> {safe(modalVehicle.licensePlate)}</p>
-            <p><strong>Año:</strong> {safe(modalVehicle.year)}</p>
-            <p><strong>Color:</strong> {safe(modalVehicle.color)}</p>
-            <p><strong>Coorporacion:</strong> {safe(modalVehicle.corporation)}</p>
-            <p><strong>Estatus:</strong> {safe(modalVehicle.status)}</p>
-
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button className="delete-btn" onClick={() => handleDelete(modalVehicle.id)}>Eliminar</button>
-              <button className="close-btn" onClick={() => setModalVehicle(null)}>Cerrar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Crear */}
-      {isCreating && (
-        <div className="modal-overlay" onClick={() => setIsCreating(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h4>Crear vehículo</h4>
-
-            <div style={{ display: 'grid', gap: 8 }}>
-              <label>Placa
-                <input value={newLicensePlate} onChange={e => setNewLicensePlate(e.target.value)} />
-              </label>
-
-              <label>Modelo
-                <input value={newModel} onChange={e => setNewModel(e.target.value)} />
-              </label>
-
-              <label>Año
-                <input type="number" value={newYear ?? ''} onChange={e => setNewYear(e.target.value ? Number(e.target.value) : null)} />
-              </label>
-
-              <label>Color
-                <input value={newColor ?? ''} onChange={e => setNewColor(e.target.value || null)} />
-              </label>
-
-              <label>Corporación
-                <input value={newCorporation ?? ''} onChange={e => setNewCorporation(e.target.value || null)} />
-              </label>
-
-              <label>Estatus
-                <input value={newStatus} onChange={e => setNewStatus(e.target.value)} />
-              </label>
-            </div>
-
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button className="card-button" onClick={handleCreate}>Crear</button>
-              <button className="close-btn" onClick={() => setIsCreating(false)}>Cancelar</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

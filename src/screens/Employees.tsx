@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import type { Employee } from '../models'
 import { getWorkers, deleteWorker, updateWorker, createWorker } from '../api'
 import './Employees.css'
+import Header from '../components/Header'
 
 class ModalErrorBoundary extends React.Component<any, { hasError: boolean; error?: any }> {
   constructor(props: any) {
@@ -180,6 +181,17 @@ export default function EmployeesScreen() {
 
   return (
     <div className="panel">
+      <Header
+        title="Trabajadores"
+        centerSlot={
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="tab tab-active">Activos</button>
+            <button className="tab">Inactivos</button>
+          </div>
+        }
+        rightSlot={<button className="btn">Invitar</button>}
+      />
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <h3>
           {workers === null ? 'Trabajadores (cargando...)'

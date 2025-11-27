@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import './Assignments.css'
+import Header from '../components/Header'
 
 type Assignment = {
   id: string
@@ -262,16 +263,11 @@ export default function AssignmentsScreen() {
 
   return (
     <div className="assignments-page">
-      <h1>Asignaciones</h1>
-
-      <div className="assignments-controls header-row">
-        <div className="left-controls">
-          <button className="filter-btn">Filtrar por</button>
-        </div>
-        <div className="right-controls">
-          {canManage && <button className="add-btn" onClick={() => openCreate()}>+ Agregar</button>}
-        </div>
-      </div>
+      <Header
+        title="Asignaciones"
+        centerSlot={<div style={{ display: 'flex', gap: 8 }}><button className="filter-btn">Filtrar por</button></div>}
+        rightSlot={canManage ? <button className="add-btn" onClick={() => openCreate()}>+ Agregar</button> : null}
+      />
 
       {loading && <p>Cargando asignaciones…</p>}
       {error && <div style={{ color: 'var(--danger, #b91c1c)' }}>{error}</div>}
