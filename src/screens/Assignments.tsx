@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { updateWorker, deleteWorker } from '../api'
 import './Assignments.css'
+import './Employees.css'
 import Header from '../components/Header'
 
 type Assignment = {
@@ -37,6 +39,58 @@ export default function AssignmentsScreen() {
   const [selectedVehicle, setSelectedVehicle] = useState<any | null>(null)
   const [createLoadingWorkers, setCreateLoadingWorkers] = useState(false)
   const [createLoadingVehicles, setCreateLoadingVehicles] = useState(false)
+  const [workerDetail, setWorkerDetail] = useState<any | null>(null)
+  const [editModeWorker, setEditModeWorker] = useState(false)
+  const [creatingWorker, setCreatingWorker] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [editSecondName, setEditSecondName] = useState<string | null>(null)
+  const [editLastname, setEditLastname] = useState('')
+  const [editSecondLastname, setEditSecondLastname] = useState<string | null>(null)
+  const [editRole, setEditRole] = useState('')
+  const [editEmail, setEditEmail] = useState<string | null>(null)
+  const [editPhoneNumber, setEditPhoneNumber] = useState<string | number | null>(null)
+  const [editFechaNacimiento, setEditFechaNacimiento] = useState<string | null>(null)
+  const [editStatus, setEditStatus] = useState<string | null>(null)
+  const [editPhotoUrl, setEditPhotoUrl] = useState<string | null>(null)
+  const [editAssignedVehicleId, setEditAssignedVehicleId] = useState<string | null>(null)
+
+  const renderVal = (v: any) => {
+    if (v === null || v === undefined) return '—'
+    if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return String(v)
+    if (Array.isArray(v)) return v.map(i => (typeof i === 'object' ? JSON.stringify(i) : String(i))).join(', ')
+    try { return JSON.stringify(v) } catch { return String(v) }
+  }
+
+  // Initialize edit fields when workerDetail changes
+  useEffect(() => {
+    if (!workerDetail) {
+      setEditModeWorker(false)
+      setEditName('')
+      setEditSecondName(null)
+      setEditLastname('')
+      setEditSecondLastname(null)
+      setEditRole('')
+      setEditEmail(null)
+      setEditPhoneNumber(null)
+      setEditFechaNacimiento(null)
+      setEditStatus(null)
+      setEditPhotoUrl(null)
+      setEditAssignedVehicleId(null)
+      return
+    }
+    setEditModeWorker(false)
+    setEditName(workerDetail.name || '')
+    setEditSecondName((workerDetail as any).secondName ?? null)
+    setEditLastname((workerDetail as any).lastname || '')
+    setEditSecondLastname((workerDetail as any).secondLastname ?? null)
+    setEditRole(workerDetail.role || '')
+    setEditEmail(workerDetail.email ?? null)
+    setEditPhoneNumber((workerDetail as any).phoneNumber ?? null)
+    setEditFechaNacimiento((workerDetail as any).fechaNacimiento ?? null)
+    setEditStatus((workerDetail as any).status ?? null)
+    setEditPhotoUrl((workerDetail as any).photoUrl ?? null)
+    setEditAssignedVehicleId(workerDetail.assignedVehicleId ?? null)
+  }, [workerDetail])
 
   if (!user) return null
 
@@ -57,6 +111,7 @@ export default function AssignmentsScreen() {
     setLoading(true)
     setError(null)
     try {
+      try { console.debug('[Assignments] load start') } catch(e){}
       const headers: Record<string,string> = { 'Content-Type': 'application/json' }
       if (token) headers['Authorization'] = `Bearer ${token}`
       const endpoint = (String(user.role || '').toLowerCase() === 'worker') ? '/assignments/my' : '/assignments'
@@ -85,10 +140,12 @@ export default function AssignmentsScreen() {
         })
       })
       setItems(normalized)
+      try { console.debug('[Assignments] loaded items', normalized.length) } catch(e){}
     } catch (e: any) {
       console.error('Error cargando asignaciones', e)
       setError(e && e.message ? String(e.message) : 'Error cargando asignaciones')
-      setItems([])
+      // No limpiar `items` aquí para evitar que la UI parpadee si una recarga falla.
+      try { console.debug('[Assignments] keeping previous items after load error') } catch (e) {}
     } finally { setLoading(false) }
   }
 
@@ -112,8 +169,11 @@ export default function AssignmentsScreen() {
       // attach selected worker identifier
       if (selectedWorker) {
         const id = (selectedWorker as any).id || (selectedWorker as any)._id || (typeof selectedWorker === 'string' ? selectedWorker : undefined)
-        if (id) payload.assignedWorkerId = id
-        else payload.assignedTo = selectedWorker
+        if (id) {
+          payload.assignedWorkerId = id
+          // some backends expect `workerId` as the field name when creating assignments
+          payload.workerId = id
+        } else payload.assignedTo = selectedWorker
       }
 
       // attach selected vehicle identifier only if selected worker is a 'worker'
@@ -147,10 +207,13 @@ export default function AssignmentsScreen() {
     try {
       const headers: Record<string,string> = { 'Content-Type': 'application/json', 'Accept': 'application/json' }
       if (token) headers['Authorization'] = `Bearer ${token}`
+      // Log outgoing update for debugging 500 errors
+      try { console.log('[Assignments] PUT', buildApiUrl(`/assignments/${id}`), 'payload=', payload) } catch (e) {}
       const res = await fetch(buildApiUrl(`/assignments/${id}`), { method: 'PUT', headers, body: JSON.stringify(payload) })
       if (!res.ok) {
         let body = ''
         try { const j = await res.json(); body = JSON.stringify(j) } catch { body = await res.text().catch(() => '') }
+        try { console.error('[Assignments] PUT failed', res.status, body) } catch (e) {}
         throw new Error(`Actualizar falló: ${res.status} ${body}`)
       }
       await load()
@@ -272,32 +335,51 @@ export default function AssignmentsScreen() {
       {loading && <p>Cargando asignaciones…</p>}
       {error && <div style={{ color: 'var(--danger, #b91c1c)' }}>{error}</div>}
       {/* Grid of employees who have vehicles assigned (built from vehiclesList) */}
-      {(!vehiclesList || vehiclesList.length === 0) && !loading && <p>No hay empleados con vehículos asignados.</p>}
+      {/* Mensaje removido: la lista de asignaciones se mostrará usando `vehiclesList` o `items` como fallback */}
       <div className="assignments-grid">
         {(() => {
-          const map = new Map<string, { role?: string; name?: string; plate?: string; assignmentSummary?: string }>()
-          ;(vehiclesList || []).forEach(v => {
-            const aw = v.assignedWorker || v.assignedTo || v.worker || null
-            const awId = v.assignedWorkerId || (aw && (aw.id || aw._id || aw.email))
-            if (!awId) return
+          const map = new Map<string, { role?: string; name?: string; plate?: string; assignmentSummary?: string; workerObj?: any }>()
 
-            // try to resolve worker info from the assigned object or workersList
-            let worker: any = null
-            if (aw && typeof aw === 'object') worker = aw
-            else worker = (workersList || []).find(w => {
-              const wid = w.id || w._id || w.email
-              return wid && String(wid) === String(awId)
+          // First, try to build entries from vehiclesList when available
+          if (vehiclesList && vehiclesList.length > 0) {
+            ;(vehiclesList || []).forEach(v => {
+              const aw = v.assignedWorker || v.assignedTo || v.worker || null
+              const awId = v.assignedWorkerId || (aw && (aw.id || aw._id || aw.email))
+              if (!awId) return
+
+              // try to resolve worker info from the assigned object or workersList
+              let worker: any = null
+              if (aw && typeof aw === 'object') worker = aw
+              else worker = (workersList || []).find(w => {
+                const wid = w.id || w._id || w.email
+                return wid && String(wid) === String(awId)
+              })
+
+              // If no worker details, still create an entry using available awId
+              const key = String((worker && (worker.id || worker._id || worker.email)) || awId)
+              if (map.has(key)) return
+              const name = (worker && (worker.name || worker.nombre || worker.email)) || (aw && (aw.name || aw.nombre || aw.email)) || '—'
+              const role = (worker && worker.role) || (aw && aw.role) || 'Empleado'
+              const plate = v.licensePlate || v.plate || v.plateNumber || ''
+              const summary = plate ? `Vehículo: ${plate}` : ''
+              map.set(key, { role, name, plate, assignmentSummary: summary, workerObj: worker || aw || null })
             })
-            if (!worker) return
+          }
 
-            const key = String(worker.id || worker._id || worker.email || awId)
+          // Always merge assignments (`items`) to ensure workers show even if vehiclesList mapping missed them
+          ;(items || []).forEach(a => {
+            const asg: any = (a as any).assignedTo || null
+            const awId = asg && (typeof asg === 'string' ? asg : (asg.id || asg._id || asg.email))
+            if (!awId) return
+            const key = String(awId)
             if (map.has(key)) return
-            const name = worker.name || worker.nombre || worker.email || '—'
-            const role = worker.role || 'Empleado'
-            const plate = v.licensePlate || v.plate || v.plateNumber || ''
-            const summary = `Vehículo: ${plate}`
-            map.set(key, { role, name, plate, assignmentSummary: summary })
+            const name = typeof asg === 'string' ? asg : (asg.name || asg.nombre || asg.email || '—')
+            const role = (asg && asg.role) || 'Empleado'
+            const plate = (a as any).vehicle ? ((a as any).vehicle.licensePlate || (a as any).vehicle.plate || '') : ''
+            const summary = plate ? `Vehículo: ${plate}` : ''
+            map.set(key, { role, name, plate, assignmentSummary: summary, workerObj: asg || null })
           })
+
           return Array.from(map.entries()).map(([k, v]) => (
             <div key={k} className="assignment-card">
               <div className="card-header">{v.role}</div>
@@ -305,13 +387,142 @@ export default function AssignmentsScreen() {
                 <div className="card-name">{v.name}</div>
                 {v.plate && <div className="card-plate">{v.plate}</div>}
                 <div style={{ marginTop: 12 }}>
-                  <button className="small" onClick={() => {/* TODO: open details for this worker */}}>Ver mas</button>
+                  <button className="small" onClick={() => setWorkerDetail(v.workerObj || { id: k, name: v.name, role: v.role, plate: v.plate })}>Ver mas</button>
                 </div>
               </div>
             </div>
           ))
         })()}
       </div>
+
+      {workerDetail && (
+        <div className="modal-overlay" onClick={() => { setWorkerDetail(null); setEditModeWorker(false); setCreatingWorker(false) }}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            {(!editModeWorker && !creatingWorker) ? (
+              <>
+                {typeof workerDetail.photoUrl === 'string' && workerDetail.photoUrl.trim() !== '' && (
+                  <div style={{ textAlign: 'center', marginBottom: 8 }}>
+                    <img src={workerDetail.photoUrl} alt={String(workerDetail.name || '')} style={{ maxWidth: 160, borderRadius: 8 }} />
+                  </div>
+                )}
+                <h4>{[workerDetail.name, (workerDetail as any).secondName, (workerDetail as any).lastname, (workerDetail as any).secondLastname].filter(Boolean).join(' ')}</h4>
+                <p><strong>Rol:</strong> {renderVal(workerDetail.role)}</p>
+                <p><strong>Email:</strong> {renderVal(workerDetail.email)}</p>
+                <p><strong>Teléfono:</strong> {renderVal((workerDetail as any).phoneNumber)}</p>
+                <p><strong>Fecha de nacimiento:</strong> {((workerDetail as any).fechaNacimiento) ? (() => { try { return new Date((workerDetail as any).fechaNacimiento).toLocaleDateString() } catch { return renderVal((workerDetail as any).fechaNacimiento) } })() : '—'}</p>
+                <p><strong>Estado:</strong> {renderVal((workerDetail as any).status)}</p>
+                <p><strong>Asignación:</strong> {renderVal(workerDetail.assignedVehicleId) || '—'}</p>
+                <p><strong>ID:</strong> {renderVal(workerDetail.id)}</p>
+                <p className="muted"><strong>Creado:</strong> {renderVal(workerDetail.createdAt)}</p>
+
+                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                  <button className="card-button" onClick={() => setEditModeWorker(true)}>Actualizar</button>
+                  <button className="danger-btn" onClick={async () => {
+                    if (!confirm('¿Eliminar este trabajador?')) return
+                    try {
+                      if (!token) return alert('No autorizado')
+                      await deleteWorker(workerDetail.id, token)
+                      alert('Trabajador eliminado')
+                      setWorkerDetail(null)
+                    } catch (e: any) { alert(e?.message || 'Error al eliminar') }
+                  }}>Eliminar</button>
+                  <button className="close-btn" onClick={() => { setWorkerDetail(null); setEditModeWorker(false); setCreatingWorker(false) }}>Cerrar</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h4>{creatingWorker ? 'Agregar trabajador' : 'Editar trabajador'}</h4>
+                <div className="modal-form">
+                  <label>
+                    Nombre
+                    <input value={editName} onChange={e => setEditName(e.target.value)} />
+                  </label>
+                  <label>
+                    Segundo nombre
+                    <input value={editSecondName ?? ''} onChange={e => setEditSecondName(e.target.value || null)} />
+                  </label>
+                  <label>
+                    Apellido
+                    <input value={editLastname} onChange={e => setEditLastname(e.target.value)} />
+                  </label>
+                  <label>
+                    Segundo apellido
+                    <input value={editSecondLastname ?? ''} onChange={e => setEditSecondLastname(e.target.value || null)} />
+                  </label>
+                  <label>
+                    Rol
+                    <input value={editRole} onChange={e => setEditRole(e.target.value)} />
+                  </label>
+                  <label>
+                    Email
+                    <input value={editEmail ?? ''} onChange={e => setEditEmail(e.target.value || null)} />
+                  </label>
+                  <label>
+                    Teléfono
+                    <input value={editPhoneNumber ?? ''} onChange={e => setEditPhoneNumber(e.target.value || null)} />
+                  </label>
+                  <label>
+                    Fecha de nacimiento
+                    <input type="date" value={editFechaNacimiento ? editFechaNacimiento.split('T')[0] : ''} onChange={e => setEditFechaNacimiento(e.target.value || null)} />
+                  </label>
+                  <label>
+                    Estado
+                    <input value={editStatus ?? ''} onChange={e => setEditStatus(e.target.value || null)} />
+                  </label>
+                  <label>
+                    Photo URL
+                    <input value={editPhotoUrl ?? ''} onChange={e => setEditPhotoUrl(e.target.value || null)} />
+                  </label>
+                  <label>
+                    Asignación (vehicle id)
+                    <input value={editAssignedVehicleId ?? ''} onChange={e => setEditAssignedVehicleId(e.target.value || null)} />
+                  </label>
+                </div>
+
+                <div className="modal-actions">
+                  <>
+                    <button className="card-button" onClick={async () => {
+                      if (!workerDetail) return
+                      try {
+                        if (!token) return alert('No autorizado')
+                        const payload = {
+                          name: editName,
+                          secondName: editSecondName,
+                          lastname: editLastname,
+                          secondLastname: editSecondLastname,
+                          role: editRole,
+                          email: editEmail,
+                          phoneNumber: editPhoneNumber,
+                          fechaNacimiento: editFechaNacimiento,
+                          status: editStatus,
+                          photoUrl: editPhotoUrl,
+                          assignedVehicleId: editAssignedVehicleId,
+                        }
+                        const updated = await updateWorker(workerDetail.id, payload as any, token)
+                        const updatedItem = (updated && (updated.data || updated.worker || updated)) || { ...workerDetail, ...payload }
+                        setWorkerDetail({ ...(workerDetail || {}), ...updatedItem })
+                        setEditModeWorker(false)
+                        alert('Trabajador actualizado')
+                      } catch (e: any) { alert(e?.message || 'No se pudo actualizar') }
+                    }}>Guardar</button>
+                    <button className="close-btn" onClick={() => setEditModeWorker(false)}>Cancelar</button>
+                    <button className="danger-btn" onClick={async () => {
+                      if (!workerDetail) return
+                      if (!confirm('¿Eliminar este trabajador?')) return
+                      try {
+                        if (!token) return alert('No autorizado')
+                        await deleteWorker(workerDetail.id, token)
+                        alert('Trabajador eliminado')
+                        setWorkerDetail(null)
+                      } catch (e: any) { alert(e?.message || 'No se pudo eliminar') }
+                    }}>Eliminar</button>
+                  </>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {creating && (
         <div className="report-detail-modal" onClick={() => setCreating(false)}>
