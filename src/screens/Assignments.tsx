@@ -159,69 +159,129 @@ export default function AssignmentsScreen() {
     })()
   }, [user, token])
 
-  const handleCreate = async () => {
+  const handleCreate = async (payload: Partial<Assignment>) => {
     setSubmitting(true)
+
     try {
-      const headers: Record<string,string> = { 'Content-Type': 'application/json', 'Accept': 'application/json' }
-      if (token) headers['Authorization'] = `Bearer ${token}`
-      const payload: any = {}
-
-      // attach selected worker identifier
-      if (selectedWorker) {
-        const id = (selectedWorker as any).id || (selectedWorker as any)._id || (typeof selectedWorker === 'string' ? selectedWorker : undefined)
-        if (id) {
-          payload.assignedWorkerId = id
-          // some backends expect `workerId` as the field name when creating assignments
-          payload.workerId = id
-        } else payload.assignedTo = selectedWorker
+      // --- VALIDAR ---
+      if (!(payload as any).assignedTo?.id && !(payload as any).workerId) {
+        throw new Error("Debes seleccionar un trabajador")
       }
 
-      // attach selected vehicle identifier only if selected worker is a 'worker'
-      const selRole = String((selectedWorker as any)?.role || '').toLowerCase()
-      if (selRole === 'worker' && selectedVehicle) {
-        const vid = (selectedVehicle as any).id || (selectedVehicle as any)._id || (selectedVehicle as any).vehicleId
-        if (vid) payload.vehicleId = vid
-        else if ((selectedVehicle as any).licensePlate) payload.vehicle = { licensePlate: (selectedVehicle as any).licensePlate }
-        else payload.vehicle = selectedVehicle
+      const workerId =
+        (payload as any).workerId ??
+        (payload as any).assignedTo?.id
+
+      const vehicleId =
+        (payload as any).vehicleId ??
+        (payload as any).vehicle?.id ??
+        null
+
+      // --- PAYLOAD COMPLETO Y CORRECTO ---
+      const fullPayload = {
+        workerId,               // requerido por DB
+        vehicleId,              // opcional
+        notes: (payload as any).notes ?? "",
+        progressStatus: "not_started",
+        priority: "medium",
+        // Estos los rellena el backend (tienen default), no los mandamos:
+        // assignedAt
+        // completedAt
       }
 
-      // no title/description/scheduledAt per requested changes
+      console.log("CREATING ASSIGNMENT →", fullPayload)
 
-      const res = await fetch(buildApiUrl('/assignments'), { method: 'POST', headers, body: JSON.stringify(payload) })
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      }
+      if (token) headers.Authorization = `Bearer ${token}`
+
+      const res = await fetch(buildApiUrl("/assignments"), {
+        method: "POST",
+        headers,
+        body: JSON.stringify(fullPayload),
+      })
+
       if (!res.ok) {
-        let body = ''
-        try { const j = await res.json(); body = JSON.stringify(j) } catch { body = await res.text().catch(() => '') }
+        let body = ""
+        try { body = JSON.stringify(await res.json()) }
+        catch { body = await res.text().catch(() => "") }
         throw new Error(`Crear falló: ${res.status} ${body}`)
       }
 
       await load()
       setCreating(false)
+
     } catch (e: any) {
-      console.error(e)
-      setError(e && e.message ? String(e.message) : 'No se pudo crear asignación')
-    } finally { setSubmitting(false) }
+      console.error("Error creando asignación", e)
+      setError(e?.message ?? "No se pudo crear la asignación")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const handleUpdate = async (id: string, payload: Partial<Assignment>) => {
     setSubmitting(true)
     try {
-      const headers: Record<string,string> = { 'Content-Type': 'application/json', 'Accept': 'application/json' }
-      if (token) headers['Authorization'] = `Bearer ${token}`
-      // Log outgoing update for debugging 500 errors
-      try { console.log('[Assignments] PUT', buildApiUrl(`/assignments/${id}`), 'payload=', payload) } catch (e) {}
-      const res = await fetch(buildApiUrl(`/assignments/${id}`), { method: 'PUT', headers, body: JSON.stringify(payload) })
+      const original = items.find(a => a.id === id)
+      if (!original) throw new Error("Asignación no encontrada en memoria")
+
+      // Reconstruir payload COMPLETO
+      const fullPayload: any = {
+        // worker asignado
+        assignedWorkerId:
+          (payload.assignedTo as any)?.id ??
+          (original.assignedTo as any)?.id ??
+          original.assignedTo,
+
+        // vehículo asignado
+        vehicleId:
+          (payload.vehicle as any)?.id ??
+          (original.vehicle as any)?.id ??
+          null,
+
+        // status
+        status: payload.status ?? original.status,
+
+        // metadatos importantes
+        title: payload.title ?? original.title,
+        description: payload.description ?? original.description,
+        scheduledAt: payload.scheduledAt ?? original.scheduledAt,
+        createdAt: original.createdAt,
+        updatedAt: new Date().toISOString()
+      }
+
+      console.log("[Assignments] ENVIANDO FULL PAYLOAD:", fullPayload)
+
+      const headers: Record<string,string> = {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      }
+      if (token) headers.Authorization = `Bearer ${token}`
+
+      const res = await fetch(buildApiUrl(`/assignments/${id}`), {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(fullPayload),
+      })
+
       if (!res.ok) {
-        let body = ''
-        try { const j = await res.json(); body = JSON.stringify(j) } catch { body = await res.text().catch(() => '') }
-        try { console.error('[Assignments] PUT failed', res.status, body) } catch (e) {}
+        let body = ""
+        try { body = JSON.stringify(await res.json()) }
+        catch { body = await res.text().catch(()=> "") }
         throw new Error(`Actualizar falló: ${res.status} ${body}`)
       }
+
       await load()
-      setSelected(prev => prev && prev.id === id ? { ...prev, ...(payload as any) } : prev)
+      setSelected(prev => prev && prev.id === id ? { ...prev, ...payload } : prev)
+
     } catch (e: any) {
       console.error(e)
-      setError(e && e.message ? String(e.message) : 'No se pudo actualizar')
-    } finally { setSubmitting(false) }
+      setError(e?.message ?? "No se pudo actualizar")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const handleDelete = async (id: string) => {
@@ -596,7 +656,7 @@ export default function AssignmentsScreen() {
                     </>
                   )}
                   {createStep === 'confirm' && (
-                    <button className="small" onClick={() => handleCreate()} disabled={submitting}>{submitting ? 'Guardando…' : 'Crear'}</button>
+                    <button className="small" onClick={() => handleCreate({ assignedTo: selectedWorker, vehicle: selectedVehicle })} disabled={submitting}>{submitting ? 'Guardando…' : 'Crear'}</button>
                   )}
                 </div>
           </div>
