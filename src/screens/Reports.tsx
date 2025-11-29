@@ -74,10 +74,11 @@ function mapStatus(s?: string) {
       return 'Completado'
     case 'on_hold':
       return 'En pausa'
+    // map legacy/other statuses into the allowed set
     case 'reported':
-      return 'Reportado'
+      return 'En progreso'
     case 'resolved':
-      return 'Resuelto'
+      return 'Completado'
     default:
       return key.replace(/_/g, ' ')
   }
@@ -368,10 +369,9 @@ function ReportList({ reports, onDelete, onSelect, onEdit }: { reports: Detailed
                     <label>
                       Estado
                       <select value={String(editData.status || '')} onChange={e => setEditData({ ...editData, status: e.target.value })}>
-                        <option value="reported">Reportado</option>
+                        <option value="not_started">No iniciado</option>
                         <option value="in_progress">En progreso</option>
                         <option value="completed">Completado</option>
-                        <option value="resolved">Resuelto</option>
                         <option value="on_hold">En pausa</option>
                       </select>
                       {formErrors.status && <div className="form-error">{formErrors.status}</div>}
@@ -466,28 +466,55 @@ export default function ReportsScreen() {
   const [loading, setLoading] = useState(false)
   const [selectedReport, setSelectedReport] = useState<DetailedReport | null>(null)
   
-  // Edit handler passed to ReportList to update a report inline
   const handleEdit = async (id: string, payload: Partial<DetailedReport>) => {
     try {
-      const headers: Record<string,string> = { 'Content-Type': 'application/json', 'Accept': 'application/json' }
-      if (token) headers['Authorization'] = `Bearer ${token}`
-      const url = buildApiUrl(`/reports/${id}`)
-      const res = await fetch(url, { method: 'PUT', headers, body: JSON.stringify(payload) })
-      if (!res.ok) {
-        // Try to parse JSON error body if provided by backend
-        let errText = `Status ${res.status}`
-        try {
-          const json = await res.json()
-          if (json) errText += ` - ${JSON.stringify(json)}`
-        } catch (parseErr) {
-          const text = await res.text().catch(() => '')
-          if (text) errText += ` - ${text}`
-        }
-        throw new Error(`Edit failed: ${errText}`)
+      // Buscar el reporte original
+      const original = reports.find(r => r.id === id)
+      if (!original) throw new Error('Reporte no encontrado en memoria')
+
+      // Construir el payload COMPLETO que la DB necesita
+      const fullPayload: Record<string, any> = {
+        latitude: original.location?.lat,
+        longitude: original.location?.lng,
+        street: payload.street ?? original.street,
+        neighborhood: payload.neighborhood ?? original.neighborhood,
+        city: payload.city ?? original.city,
+        state: payload.state ?? original.state,
+        postalCode: payload.postalCode ?? original.postalCode,
+        description: payload.description ?? original.description,
+        date: original.createdAt,
+        reportedByVehicleId: original.reportedByVehicle?.id ?? null,
+        reportedByWorkerId: original.reportedByWorker?.id ?? null,
+        status: payload.status ?? original.status,
+        severity: payload.severity ?? original.severity,
+        comments: payload.comments ?? original.comments,
+        images: original.images ?? [],
+        updatedAt: new Date().toISOString()
       }
-      // Refresh list and update selection
+
+      try { console.log('FULL PAYLOAD ENVIADO:', JSON.stringify(fullPayload)) } catch (e) { console.log('FULL PAYLOAD ENVIADO', fullPayload) }
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      const url = buildApiUrl(`/reports/${id}`)
+
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(fullPayload)
+      })
+
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '')
+        throw new Error(`Edit failed: Status ${res.status} - ${txt}`)
+      }
+
       await loadReports()
-      setSelectedReport(prev => prev && prev.id === id ? { ...prev, ...(payload as any) } : prev)
+
     } catch (e) {
       console.error('Error editando reporte', e)
       throw e
@@ -528,7 +555,14 @@ export default function ReportsScreen() {
         id: r.id || r._id || String(r.id || Math.random()),
         description: r.description || r.comments || '',
         severity: r.severity || 'medium',
-        status: r.status || 'reported',
+        status: (() => {
+          const s = r.status ? String(r.status).trim().toLowerCase() : ''
+          const allowed = ['not_started', 'in_progress', 'completed', 'on_hold']
+          if (allowed.includes(s)) return s
+          if (s === 'reported') return 'in_progress'
+          if (s === 'resolved') return 'completed'
+          return 'in_progress'
+        })(),
         comments: r.comments || '',
         street: r.street || '',
         neighborhood: r.neighborhood || '',
