@@ -31,6 +31,19 @@ body {
   min-height: 100vh;
 }
 
+/* App layout utilities */
+.app-root{display:flex;height:100vh;width:100%;overflow:hidden}
+.app-content{flex:1;display:flex;flex-direction:column;overflow:auto;background:var(--bg);padding:20px;box-sizing:border-box}
+
+/* Page container to center content with max width */
+.page{max-width:1200px;width:100%;margin:0 auto;box-sizing:border-box}
+
+/* Generic panel styles used across pages */
+.panel{background:#ffffff;border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:0 1px 6px rgba(16,24,40,0.04)}
+
+/* Ensure main content stretches so children like grids/maps can use full height */
+.fill-vertical{min-height:calc(100vh - 80px);display:flex;flex-direction:column}
+
 h1 {
   font-size: 3.2em;
   line-height: 1.1;

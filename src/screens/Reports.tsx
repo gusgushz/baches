@@ -335,12 +335,12 @@ function ReportList({ reports, onDelete, onSelect, onEdit }: { reports: Detailed
                     await onEdit(detailReport.id, editData)
                     setSuccessMessage('Reporte actualizado correctamente.')
                     // update modal detail with local changes
-                    setDetailReport(prev => prev ? { ...prev, ...(editData as any) } : prev)
+                    setDetailReport(prev => prev ? { ...prev, ...(editData || {}) } : prev)
                     setIsEditing(false)
                     setTimeout(() => setSuccessMessage(null), 3500)
-                  } catch (err: any) {
+                  } catch (err: unknown) {
                     console.error(err)
-                    const msg = err && err.message ? String(err.message) : 'No se pudo actualizar el reporte. Intenta de nuevo.'
+                    const msg = (err as Error)?.message ? String((err as Error).message) : 'No se pudo actualizar el reporte. Intenta de nuevo.'
                     setErrorMessage(msg)
                     setTimeout(() => setErrorMessage(null), 7000)
                   }
@@ -487,7 +487,7 @@ export default function ReportsScreen() {
       }
       // Refresh list and update selection
       await loadReports()
-      setSelectedReport(prev => prev && prev.id === id ? { ...prev, ...(payload as any) } : prev)
+      setSelectedReport(prev => prev && prev.id === id ? { ...prev, ...(payload || {}) } : prev)
     } catch (e) {
       console.error('Error editando reporte', e)
       throw e
@@ -524,35 +524,63 @@ export default function ReportsScreen() {
       }
       const data = await res.json().catch(() => null)
       const items = (data && (data.reports || data.data || data)) || []
-      const normalized = (items as any[]).map(r => ({
-        id: r.id || r._id || String(r.id || Math.random()),
-        description: r.description || r.comments || '',
-        severity: r.severity || 'medium',
-        status: r.status || 'reported',
-        comments: r.comments || '',
-        street: r.street || '',
-        neighborhood: r.neighborhood || '',
-        city: r.city || '',
-        state: r.state || r.stateName || '',
-        postalCode: r.postalCode || r.postal_code || '',
-        location: r.location ? r.location : (r.latitude !== undefined && r.longitude !== undefined ? { lat: r.latitude, lng: r.longitude } : null),
-        images: Array.isArray(r.images) ? r.images : (r.photo ? [r.photo] : []),
-        // support variations returned by different backends
-        reportedByVehicle: r.reportedByVehicle || r.vehicle || (r.vehicleId || r.plate || r.licensePlate ? {
-          id: r.vehicleId || undefined,
-          licensePlate: r.licensePlate || r.plate || undefined,
-          plate: r.plate || r.licensePlate || undefined,
-          model: r.vehicleModel || r.model || undefined,
-          brand: r.vehicleBrand || r.brand || undefined,
-        } : undefined),
-        reportedByWorker: r.reportedByWorker || r.worker || r.reporter || (r.workerId || r.workerName || r.email ? {
-          id: r.workerId || undefined,
-          name: r.workerName || r.name || undefined,
-          lastname: r.workerLastname || r.lastname || undefined,
-          email: r.email || r.workerEmail || undefined,
-        } : undefined),
-        createdAt: r.createdAt || r.date || new Date().toISOString()
-      }))
+      const normalized = (items as unknown[]).map((r: unknown) => {
+        const rr = r as Record<string, unknown>
+        const id = (rr.id ?? rr._id) as string | undefined
+        const description = (rr.description as string) ?? (rr.comments as string) ?? ''
+        const severity = (rr.severity as string) ?? 'medium'
+        const status = (rr.status as string) ?? 'reported'
+        const comments = (rr.comments as string) ?? ''
+        const street = (rr.street as string) ?? ''
+        const neighborhood = (rr.neighborhood as string) ?? ''
+        const city = (rr.city as string) ?? ''
+        const state = (rr.state as string) ?? (rr.stateName as string) ?? ''
+        const postalCode = (rr.postalCode as string) ?? (rr.postal_code as string) ?? ''
+        const maybeLoc = rr.location as unknown
+        let location: Location | null = null
+        if (maybeLoc && typeof maybeLoc === 'object' && 'lat' in (maybeLoc as Record<string, unknown>) && 'lng' in (maybeLoc as Record<string, unknown>)) {
+          const m = maybeLoc as Record<string, unknown>
+          const lat = Number(m.lat as any)
+          const lng = Number(m.lng as any)
+          if (!Number.isNaN(lat) && !Number.isNaN(lng)) location = { lat, lng }
+        } else if (rr.latitude !== undefined && rr.longitude !== undefined) {
+          const lat = Number(rr.latitude as any)
+          const lng = Number(rr.longitude as any)
+          if (!Number.isNaN(lat) && !Number.isNaN(lng)) location = { lat, lng }
+        }
+        const images = Array.isArray(rr.images) ? (rr.images as string[]) : ((rr.photo as string) ? [rr.photo as string] : [])
+        const reportedByVehicle = (rr.reportedByVehicle as any) || (rr.vehicle as any) || ((rr.vehicleId || rr.plate || rr.licensePlate) ? {
+          id: rr.vehicleId as string | undefined,
+          licensePlate: rr.licensePlate as string | undefined,
+          plate: rr.plate as string | undefined,
+          model: (rr.vehicleModel as string) ?? (rr.model as string) ?? undefined,
+          brand: (rr.vehicleBrand as string) ?? (rr.brand as string) ?? undefined,
+        } : undefined)
+        const reportedByWorker = (rr.reportedByWorker as any) || (rr.worker as any) || (rr.reporter as any) || ((rr.workerId || rr.workerName || rr.email) ? {
+          id: rr.workerId as string | undefined,
+          name: rr.workerName as string | undefined,
+          lastname: rr.workerLastname as string | undefined,
+          email: rr.email as string | undefined,
+        } : undefined)
+        const createdAt = (rr.createdAt as string) ?? (rr.date as string) ?? new Date().toISOString()
+        return {
+          id: String(id ?? Math.random()),
+          description,
+          severity,
+          status,
+          comments,
+          street,
+          neighborhood,
+          city,
+          state,
+          postalCode,
+          location,
+          images,
+          reportedByVehicle,
+          reportedByWorker,
+          createdAt
+        };
+      });
       setReports(normalized)
     } catch (e) {
       console.error('Error cargando reportes', e)
@@ -583,13 +611,8 @@ export default function ReportsScreen() {
     <div className="page">
       <Header
         title="Reportes"
-        centerSlot={<input placeholder="Buscar reportes..." style={{ padding: 8, border: '1px solid #e5e7eb', borderRadius: 8 }} />}
-        rightSlot={
-          <>
-            <button className="btn">Nuevo reporte</button>
-            <button className="btn btn-outline">Exportar</button>
-          </>
-        }
+        centerSlot={<span style={{ fontWeight: 700, fontSize: '1.05rem' }}>Reportes</span>}
+        centered={true}
       />
       {loading && <p>Cargando...</p>}
       <div className="report-section">

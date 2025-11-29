@@ -12,7 +12,7 @@ export default function VehiclesScreen() {
   const [vehicles, setVehicles] = useState<any[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
+  const [search] = useState('')
 
   const [modalVehicle, setModalVehicle] = useState<any | null>(null)
   const [isCreating, setIsCreating] = useState(false)
@@ -79,16 +79,7 @@ export default function VehiclesScreen() {
     }
   }
 
-  const openCreate = () => {
-    setIsCreating(true)
-    setModalVehicle(null)
-    setNewLicensePlate('')
-    setNewModel('')
-    setNewYear(null)
-    setNewColor(null)
-    setNewCorporation(null)
-    setNewStatus('')
-  }
+  // openCreate removed from header (creation modal still available via other UI)
 
   //Agregar vehículo
   const handleCreate = async () => {
@@ -123,21 +114,8 @@ export default function VehiclesScreen() {
     <div className="page">
       <Header
         title="Vehículos"
-        centerSlot={
-          <div className="header-search">
-            <input
-              placeholder="Buscar vehículos..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-          </div>
-        }
-        rightSlot={
-          <div className="header-actions">
-            <button className="btn-outline">Mantenimiento</button>
-            <button className="card-button" onClick={openCreate}>Agregar vehículo</button>
-          </div>
-        }
+        centerSlot={<span style={{ fontWeight: 700, fontSize: '1.05rem' }}>Vehículos</span>}
+        centered={true}
       />
 
       <div className="panel">

@@ -262,11 +262,11 @@ export default function AssignmentsScreen() {
   }
 
   return (
-    <div className="assignments-page">
+    <div className="page assignments-page">
       <Header
         title="Asignaciones"
-        centerSlot={<div style={{ display: 'flex', gap: 8 }}><button className="filter-btn">Filtrar por</button></div>}
-        rightSlot={canManage ? <button className="add-btn" onClick={() => openCreate()}>+ Agregar</button> : null}
+        centerSlot={<span style={{ fontWeight: 700, fontSize: '1.05rem' }}>Asignaciones</span>}
+        centered={true}
       />
 
       {loading && <p>Cargando asignaciones…</p>}

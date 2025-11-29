@@ -6,11 +6,14 @@ type HeaderProps = {
   leftSlot?: React.ReactNode
   centerSlot?: React.ReactNode
   rightSlot?: React.ReactNode
+  centered?: boolean
 }
 
-export default function Header({ centerSlot, rightSlot }: HeaderProps) {
+export default function Header({ leftSlot, centerSlot, rightSlot, centered }: HeaderProps) {
+  const cls = centered ? 'app-header app-header--centered' : 'app-header'
   return (
-    <header className="app-header">
+    <header className={cls}>
+      <div className="app-header__left">{leftSlot}</div>
       <div className="app-header__center">{centerSlot}</div>
       <div className="app-header__right">{rightSlot}</div>
     </header>

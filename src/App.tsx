@@ -5,9 +5,11 @@ import { Outlet } from "react-router";
 
 function App({ children }: { children?: ReactNode }) {
   return (
-    <main style={{ display: "flex", flex: 1 }}>
-      <SideBar></SideBar>
-      <Outlet></Outlet>
+    <main className="app-root">
+      <SideBar />
+      <div className="app-content">
+        <Outlet />
+      </div>
     </main>
   );
 }
