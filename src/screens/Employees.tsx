@@ -180,16 +180,12 @@ export default function EmployeesScreen() {
   if (isLoading) return <div>Cargando sesión...</div>
 
   return (
-    <div className="panel">
+    <div className="page">
+      <div className="panel">
       <Header
         title="Trabajadores"
-        centerSlot={
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="tab tab-active">Activos</button>
-            <button className="tab">Inactivos</button>
-          </div>
-        }
-        rightSlot={<button className="btn">Invitar</button>}
+        centerSlot={<span style={{ fontWeight: 700, fontSize: '1.05rem' }}>Trabajadores</span>}
+        centered={true}
       />
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
@@ -372,6 +368,7 @@ export default function EmployeesScreen() {
         </div>
         </ModalErrorBoundary>
       )}
+      </div>
     </div>
   )
 }

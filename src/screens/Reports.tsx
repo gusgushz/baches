@@ -74,11 +74,10 @@ function mapStatus(s?: string) {
       return 'Completado'
     case 'on_hold':
       return 'En pausa'
-    // map legacy/other statuses into the allowed set
     case 'reported':
-      return 'En progreso'
+      return 'Reportado'
     case 'resolved':
-      return 'Completado'
+      return 'Resuelto'
     default:
       return key.replace(/_/g, ' ')
   }
@@ -336,12 +335,12 @@ function ReportList({ reports, onDelete, onSelect, onEdit }: { reports: Detailed
                     await onEdit(detailReport.id, editData)
                     setSuccessMessage('Reporte actualizado correctamente.')
                     // update modal detail with local changes
-                    setDetailReport(prev => prev ? { ...prev, ...(editData as any) } : prev)
+                    setDetailReport(prev => prev ? { ...prev, ...(editData || {}) } : prev)
                     setIsEditing(false)
                     setTimeout(() => setSuccessMessage(null), 3500)
-                  } catch (err: any) {
+                  } catch (err: unknown) {
                     console.error(err)
-                    const msg = err && err.message ? String(err.message) : 'No se pudo actualizar el reporte. Intenta de nuevo.'
+                    const msg = (err as Error)?.message ? String((err as Error).message) : 'No se pudo actualizar el reporte. Intenta de nuevo.'
                     setErrorMessage(msg)
                     setTimeout(() => setErrorMessage(null), 7000)
                   }
@@ -369,9 +368,10 @@ function ReportList({ reports, onDelete, onSelect, onEdit }: { reports: Detailed
                     <label>
                       Estado
                       <select value={String(editData.status || '')} onChange={e => setEditData({ ...editData, status: e.target.value })}>
-                        <option value="not_started">No iniciado</option>
+                        <option value="reported">Reportado</option>
                         <option value="in_progress">En progreso</option>
                         <option value="completed">Completado</option>
+                        <option value="resolved">Resuelto</option>
                         <option value="on_hold">En pausa</option>
                       </select>
                       {formErrors.status && <div className="form-error">{formErrors.status}</div>}
@@ -466,55 +466,28 @@ export default function ReportsScreen() {
   const [loading, setLoading] = useState(false)
   const [selectedReport, setSelectedReport] = useState<DetailedReport | null>(null)
   
+  // Edit handler passed to ReportList to update a report inline
   const handleEdit = async (id: string, payload: Partial<DetailedReport>) => {
     try {
-      // Buscar el reporte original
-      const original = reports.find(r => r.id === id)
-      if (!original) throw new Error('Reporte no encontrado en memoria')
-
-      // Construir el payload COMPLETO que la DB necesita
-      const fullPayload: Record<string, any> = {
-        latitude: original.location?.lat,
-        longitude: original.location?.lng,
-        street: payload.street ?? original.street,
-        neighborhood: payload.neighborhood ?? original.neighborhood,
-        city: payload.city ?? original.city,
-        state: payload.state ?? original.state,
-        postalCode: payload.postalCode ?? original.postalCode,
-        description: payload.description ?? original.description,
-        date: original.createdAt,
-        reportedByVehicleId: original.reportedByVehicle?.id ?? null,
-        reportedByWorkerId: original.reportedByWorker?.id ?? null,
-        status: payload.status ?? original.status,
-        severity: payload.severity ?? original.severity,
-        comments: payload.comments ?? original.comments,
-        images: original.images ?? [],
-        updatedAt: new Date().toISOString()
-      }
-
-      try { console.log('FULL PAYLOAD ENVIADO:', JSON.stringify(fullPayload)) } catch (e) { console.log('FULL PAYLOAD ENVIADO', fullPayload) }
-
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      }
+      const headers: Record<string,string> = { 'Content-Type': 'application/json', 'Accept': 'application/json' }
       if (token) headers['Authorization'] = `Bearer ${token}`
-
       const url = buildApiUrl(`/reports/${id}`)
-
-      const res = await fetch(url, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(fullPayload)
-      })
-
+      const res = await fetch(url, { method: 'PUT', headers, body: JSON.stringify(payload) })
       if (!res.ok) {
-        const txt = await res.text().catch(() => '')
-        throw new Error(`Edit failed: Status ${res.status} - ${txt}`)
+        // Try to parse JSON error body if provided by backend
+        let errText = `Status ${res.status}`
+        try {
+          const json = await res.json()
+          if (json) errText += ` - ${JSON.stringify(json)}`
+        } catch (parseErr) {
+          const text = await res.text().catch(() => '')
+          if (text) errText += ` - ${text}`
+        }
+        throw new Error(`Edit failed: ${errText}`)
       }
-
+      // Refresh list and update selection
       await loadReports()
-
+      setSelectedReport(prev => prev && prev.id === id ? { ...prev, ...(payload || {}) } : prev)
     } catch (e) {
       console.error('Error editando reporte', e)
       throw e
@@ -551,42 +524,63 @@ export default function ReportsScreen() {
       }
       const data = await res.json().catch(() => null)
       const items = (data && (data.reports || data.data || data)) || []
-      const normalized = (items as any[]).map(r => ({
-        id: r.id || r._id || String(r.id || Math.random()),
-        description: r.description || r.comments || '',
-        severity: r.severity || 'medium',
-        status: (() => {
-          const s = r.status ? String(r.status).trim().toLowerCase() : ''
-          const allowed = ['not_started', 'in_progress', 'completed', 'on_hold']
-          if (allowed.includes(s)) return s
-          if (s === 'reported') return 'in_progress'
-          if (s === 'resolved') return 'completed'
-          return 'in_progress'
-        })(),
-        comments: r.comments || '',
-        street: r.street || '',
-        neighborhood: r.neighborhood || '',
-        city: r.city || '',
-        state: r.state || r.stateName || '',
-        postalCode: r.postalCode || r.postal_code || '',
-        location: r.location ? r.location : (r.latitude !== undefined && r.longitude !== undefined ? { lat: r.latitude, lng: r.longitude } : null),
-        images: Array.isArray(r.images) ? r.images : (r.photo ? [r.photo] : []),
-        // support variations returned by different backends
-        reportedByVehicle: r.reportedByVehicle || r.vehicle || (r.vehicleId || r.plate || r.licensePlate ? {
-          id: r.vehicleId || undefined,
-          licensePlate: r.licensePlate || r.plate || undefined,
-          plate: r.plate || r.licensePlate || undefined,
-          model: r.vehicleModel || r.model || undefined,
-          brand: r.vehicleBrand || r.brand || undefined,
-        } : undefined),
-        reportedByWorker: r.reportedByWorker || r.worker || r.reporter || (r.workerId || r.workerName || r.email ? {
-          id: r.workerId || undefined,
-          name: r.workerName || r.name || undefined,
-          lastname: r.workerLastname || r.lastname || undefined,
-          email: r.email || r.workerEmail || undefined,
-        } : undefined),
-        createdAt: r.createdAt || r.date || new Date().toISOString()
-      }))
+      const normalized = (items as unknown[]).map((r: unknown) => {
+        const rr = r as Record<string, unknown>
+        const id = (rr.id ?? rr._id) as string | undefined
+        const description = (rr.description as string) ?? (rr.comments as string) ?? ''
+        const severity = (rr.severity as string) ?? 'medium'
+        const status = (rr.status as string) ?? 'reported'
+        const comments = (rr.comments as string) ?? ''
+        const street = (rr.street as string) ?? ''
+        const neighborhood = (rr.neighborhood as string) ?? ''
+        const city = (rr.city as string) ?? ''
+        const state = (rr.state as string) ?? (rr.stateName as string) ?? ''
+        const postalCode = (rr.postalCode as string) ?? (rr.postal_code as string) ?? ''
+        const maybeLoc = rr.location as unknown
+        let location: Location | null = null
+        if (maybeLoc && typeof maybeLoc === 'object' && 'lat' in (maybeLoc as Record<string, unknown>) && 'lng' in (maybeLoc as Record<string, unknown>)) {
+          const m = maybeLoc as Record<string, unknown>
+          const lat = Number(m.lat as any)
+          const lng = Number(m.lng as any)
+          if (!Number.isNaN(lat) && !Number.isNaN(lng)) location = { lat, lng }
+        } else if (rr.latitude !== undefined && rr.longitude !== undefined) {
+          const lat = Number(rr.latitude as any)
+          const lng = Number(rr.longitude as any)
+          if (!Number.isNaN(lat) && !Number.isNaN(lng)) location = { lat, lng }
+        }
+        const images = Array.isArray(rr.images) ? (rr.images as string[]) : ((rr.photo as string) ? [rr.photo as string] : [])
+        const reportedByVehicle = (rr.reportedByVehicle as any) || (rr.vehicle as any) || ((rr.vehicleId || rr.plate || rr.licensePlate) ? {
+          id: rr.vehicleId as string | undefined,
+          licensePlate: rr.licensePlate as string | undefined,
+          plate: rr.plate as string | undefined,
+          model: (rr.vehicleModel as string) ?? (rr.model as string) ?? undefined,
+          brand: (rr.vehicleBrand as string) ?? (rr.brand as string) ?? undefined,
+        } : undefined)
+        const reportedByWorker = (rr.reportedByWorker as any) || (rr.worker as any) || (rr.reporter as any) || ((rr.workerId || rr.workerName || rr.email) ? {
+          id: rr.workerId as string | undefined,
+          name: rr.workerName as string | undefined,
+          lastname: rr.workerLastname as string | undefined,
+          email: rr.email as string | undefined,
+        } : undefined)
+        const createdAt = (rr.createdAt as string) ?? (rr.date as string) ?? new Date().toISOString()
+        return {
+          id: String(id ?? Math.random()),
+          description,
+          severity,
+          status,
+          comments,
+          street,
+          neighborhood,
+          city,
+          state,
+          postalCode,
+          location,
+          images,
+          reportedByVehicle,
+          reportedByWorker,
+          createdAt
+        };
+      });
       setReports(normalized)
     } catch (e) {
       console.error('Error cargando reportes', e)
@@ -617,13 +611,8 @@ export default function ReportsScreen() {
     <div className="page">
       <Header
         title="Reportes"
-        centerSlot={<input placeholder="Buscar reportes..." style={{ padding: 8, border: '1px solid #e5e7eb', borderRadius: 8 }} />}
-        rightSlot={
-          <>
-            <button className="btn">Nuevo reporte</button>
-            <button className="btn btn-outline">Exportar</button>
-          </>
-        }
+        centerSlot={<span style={{ fontWeight: 700, fontSize: '1.05rem' }}>Reportes</span>}
+        centered={true}
       />
       {loading && <p>Cargando...</p>}
       <div className="report-section">
