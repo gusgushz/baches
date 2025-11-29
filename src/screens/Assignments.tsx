@@ -357,18 +357,34 @@ export default function AssignmentsScreen() {
   const findAssignedVehicleFor = (worker: any) => {
     if (!worker) return null
     const wid = worker.id || worker._id || worker._id || worker.email
-    if (!vehiclesList || vehiclesList.length === 0) return null
-    return vehiclesList.find(v => {
-      // check many possible shapes
-      if (v.assignedWorkerId && String(v.assignedWorkerId) === String(wid)) return true
-      const aw = v.assignedWorker || v.assignedTo || v.worker || null
-      if (aw) {
-        const aid = (aw.id || aw._id || aw.email)
-        if (aid && String(aid) === String(wid)) return true
-        if (aw.email && worker.email && String(aw.email) === String(worker.email)) return true
-      }
-      return false
-    }) || null
+    // First, try to resolve from vehiclesList if available
+    if (vehiclesList && vehiclesList.length > 0) {
+      const found = vehiclesList.find(v => {
+        // check many possible shapes
+        if (v.assignedWorkerId && String(v.assignedWorkerId) === String(wid)) return true
+        const aw = v.assignedWorker || v.assignedTo || v.worker || null
+        if (aw) {
+          const aid = (aw.id || aw._id || aw.email)
+          if (aid && String(aid) === String(wid)) return true
+          if (aw.email && worker.email && String(aw.email) === String(worker.email)) return true
+        }
+        return false
+      })
+      if (found) return found
+    }
+
+    // Fallback: inspect current assignments (`items`) to find a vehicle assigned to this worker
+    if (items && items.length > 0) {
+      const assignment = items.find(a => {
+        const asg: any = (a as any).assignedTo || null
+        const awId = asg && (typeof asg === 'string' ? asg : (asg.id || asg._id || asg.email))
+        if (!awId) return false
+        if (String(awId) === String(wid)) return !!(a as any).vehicle
+        return false
+      })
+      if (assignment && (assignment as any).vehicle) return (assignment as any).vehicle
+    }
+    return null
   }
 
   const openCreate = async () => {
@@ -599,12 +615,35 @@ export default function AssignmentsScreen() {
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 8 }}>
                         {workersList.map((w:any) => {
                           const assignedVeh = findAssignedVehicleFor(w)
+                          const isAssigned = !!assignedVeh
+                          const isSelected = selectedWorker && (selectedWorker.id === (w.id || w._id) || selectedWorker.email === w.email)
                           return (
-                            <div key={w.id || w._id || w.email} onClick={() => { setSelectedWorker(w); setSelectedVehicle(assignedVeh || null) }} style={{ padding: 8, border: selectedWorker && (selectedWorker.id === (w.id || w._id) || selectedWorker.email === w.email) ? '2px solid #0b4ea2' : '1px solid #e6e9ee', borderRadius: 6, cursor: 'pointer' }}>
+                            <div
+                              key={w.id || w._id || w.email}
+                              onClick={() => {
+                                if (isAssigned) {
+                                  alert('No puedes seleccionar a este trabajador porque ya tiene un vehículo asignado.')
+                                  return
+                                }
+                                setSelectedWorker(w)
+                                setSelectedVehicle(assignedVeh || null)
+                              }}
+                              style={{
+                                padding: 8,
+                                border: isSelected ? '2px solid #0b4ea2' : '1px solid #e6e9ee',
+                                borderRadius: 6,
+                                cursor: isAssigned ? 'not-allowed' : 'pointer',
+                                opacity: isAssigned ? 0.6 : 1,
+                                position: 'relative'
+                              }}
+                              aria-disabled={isAssigned}
+                            >
                               <div style={{ fontWeight: 700 }}>{w.name || w.nombre || w.email}</div>
                               <div style={{ fontSize: 12, color: '#666' }}>{w.email || ''}{w.role ? ` · ${String(w.role)}` : ''}</div>
-                              {assignedVeh && (
+                              {assignedVeh ? (
                                 <div style={{ marginTop: 6, fontSize: 12, color: '#0b4ea2' }}>Vehículo asignado: {assignedVeh.licensePlate || assignedVeh.plate || assignedVeh.plateNumber || '—'}</div>
+                              ) : (
+                                <div style={{ marginTop: 6, fontSize: 12, color: '#999' }}>Vehículo sin asignar</div>
                               )}
                             </div>
                           )
@@ -640,7 +679,13 @@ export default function AssignmentsScreen() {
                     <button className="small" onClick={async () => {
                       if (!selectedWorker) { await fetchWorkers(); return }
                       const role = String((selectedWorker as any).role || '').toLowerCase()
+                      // Prevent moving forward if the worker already has a vehicle assigned
                       if (role === 'worker') {
+                        const assignedVeh = findAssignedVehicleFor(selectedWorker)
+                        if (assignedVeh) {
+                          alert('Este trabajador ya tiene un vehículo asignado. No puedes crear otra asignación para él.')
+                          return
+                        }
                         setCreateStep('selectVehicle')
                         await fetchVehicles()
                       } else {
