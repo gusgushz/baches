@@ -66,19 +66,19 @@ function mapStatus(s?: string) {
   if (!s) return '—'
   const key = String(s).trim().toLowerCase()
   switch (key) {
-    case 'not_started':
-      return 'No iniciado'
+    case 'reported':
+      return 'Reportado'
     case 'in_progress':
       return 'En progreso'
-    case 'completed':
-      return 'Completado'
-    case 'on_hold':
-      return 'En pausa'
-    // map legacy/other statuses into the allowed set
-    case 'reported':
-      return 'En progreso'
     case 'resolved':
-      return 'Completado'
+      return 'Resuelto'
+    // legacy/alternate values
+    case 'not_started':
+      return 'Reportado'
+    case 'completed':
+      return 'Resuelto'
+    case 'on_hold':
+      return 'En progreso'
     default:
       return key.replace(/_/g, ' ')
   }
@@ -369,10 +369,9 @@ function ReportList({ reports, onDelete, onSelect, onEdit }: { reports: Detailed
                     <label>
                       Estado
                       <select value={String(editData.status || '')} onChange={e => setEditData({ ...editData, status: e.target.value })}>
-                        <option value="not_started">No iniciado</option>
+                        <option value="reported">Reportado</option>
                         <option value="in_progress">En progreso</option>
-                        <option value="completed">Completado</option>
-                        <option value="on_hold">En pausa</option>
+                        <option value="resolved">Resuelto</option>
                       </select>
                       {formErrors.status && <div className="form-error">{formErrors.status}</div>}
                     </label>
@@ -473,6 +472,18 @@ export default function ReportsScreen() {
       if (!original) throw new Error('Reporte no encontrado en memoria')
 
       // Construir el payload COMPLETO que la DB necesita
+      // Mapeo de estados UI -> enum esperado por el backend
+      const uiStatus = (payload.status ?? original.status ?? '').toString().trim().toLowerCase()
+      const allowed = ['reported', 'in_progress', 'resolved']
+      let backendStatus = 'reported'
+      if (allowed.includes(uiStatus)) backendStatus = uiStatus
+      else {
+        if (uiStatus === 'not_started') backendStatus = 'reported'
+        else if (uiStatus === 'completed') backendStatus = 'resolved'
+        else if (uiStatus === 'on_hold') backendStatus = 'in_progress'
+        else backendStatus = 'reported'
+      }
+
       const fullPayload: Record<string, any> = {
         latitude: original.location?.lat,
         longitude: original.location?.lng,
@@ -485,7 +496,7 @@ export default function ReportsScreen() {
         date: original.createdAt,
         reportedByVehicleId: original.reportedByVehicle?.id ?? null,
         reportedByWorkerId: original.reportedByWorker?.id ?? null,
-        status: payload.status ?? original.status,
+        status: backendStatus,
         severity: payload.severity ?? original.severity,
         comments: payload.comments ?? original.comments,
         images: original.images ?? [],
@@ -557,11 +568,16 @@ export default function ReportsScreen() {
         severity: r.severity || 'medium',
         status: (() => {
           const s = r.status ? String(r.status).trim().toLowerCase() : ''
-          const allowed = ['not_started', 'in_progress', 'completed', 'on_hold']
+          // Backend enum: 'reported' | 'in_progress' | 'resolved'
+          const allowed = ['reported', 'in_progress', 'resolved']
           if (allowed.includes(s)) return s
-          if (s === 'reported') return 'in_progress'
-          if (s === 'resolved') return 'completed'
-          return 'in_progress'
+          // map legacy values into the backend enum
+          if (s === 'not_started') return 'reported'
+          if (s === 'completed') return 'resolved'
+          if (s === 'on_hold') return 'in_progress'
+          if (s === 'reported') return 'reported'
+          if (s === 'resolved') return 'resolved'
+          return 'reported'
         })(),
         comments: r.comments || '',
         street: r.street || '',
