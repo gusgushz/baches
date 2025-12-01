@@ -54,6 +54,10 @@ export default function AssignmentsScreen() {
   const [editPhotoUrl, setEditPhotoUrl] = useState<string | null>(null)
   const [editAssignedVehicleId, setEditAssignedVehicleId] = useState<string | null>(null)
 
+  // Filtrado/Orden: 'all' | 'workerAZ' | 'vehicleAZ'
+  const [filterBy, setFilterBy] = useState<'all'|'workerAZ'|'vehicleAZ'>('all')
+  const [showFilterMenu, setShowFilterMenu] = useState(false)
+
   const renderVal = (v: any) => {
     if (v === null || v === undefined) return '—'
     if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return String(v)
@@ -404,7 +408,22 @@ export default function AssignmentsScreen() {
     <div className="assignments-page">
       <Header
         title="Asignaciones"
-        centerSlot={<div style={{ display: 'flex', gap: 8 }}><button className="filter-btn">Filtrar por</button></div>}
+        centerSlot={
+          <div style={{ position: 'relative', display: 'flex', gap: 8 }}>
+            <button className="filter-btn" onClick={() => setShowFilterMenu(s => !s)}>
+              {filterBy === 'all' ? 'Filtrar' : filterBy === 'workerAZ' ? 'Trabajador A-Z' : 'Vehículo A-Z'}
+            </button>
+            {showFilterMenu && (
+              <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, background: '#fff', border: '1px solid #e6e9ee', padding: 8, borderRadius: 6, zIndex: 60 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <button className="small" onClick={() => { setFilterBy('all'); setShowFilterMenu(false) }}>Todos</button>
+                  <button className="small" onClick={() => { setFilterBy('workerAZ'); setShowFilterMenu(false) }}>Trabajador A-Z</button>
+                  <button className="small" onClick={() => { setFilterBy('vehicleAZ'); setShowFilterMenu(false) }}>Vehículo A-Z</button>
+                </div>
+              </div>
+            )}
+          </div>
+        }
         rightSlot={canManage ? <button className="add-btn" onClick={() => openCreate()}>+ Agregar</button> : null}
       />
 
@@ -422,6 +441,8 @@ export default function AssignmentsScreen() {
               const aw = v.assignedWorker || v.assignedTo || v.worker || null
               const awId = v.assignedWorkerId || (aw && (aw.id || aw._id || aw.email))
               if (!awId) return
+
+              // vehiclesList entries represent assigned vehicles (no skipping here)
 
               // try to resolve worker info from the assigned object or workersList
               let worker: any = null
@@ -456,14 +477,29 @@ export default function AssignmentsScreen() {
             map.set(key, { role, name, plate, assignmentSummary: summary, workerObj: asg || null })
           })
 
-          return Array.from(map.entries()).map(([k, v]) => (
-            <div key={k} className="assignment-card">
-              <div className="card-header">{v.role}</div>
+          // Convert map to array and apply ordering according to `filterBy`
+          const entries = Array.from(map.entries()).map(([k, v]) => ({ key: k, val: v }))
+          if (filterBy === 'workerAZ') {
+            entries.sort((a, b) => String(a.val.name || '').localeCompare(String(b.val.name || '')))
+          } else if (filterBy === 'vehicleAZ') {
+            entries.sort((a, b) => {
+              const pa = String(a.val.plate || '')
+              const pb = String(b.val.plate || '')
+              if (!pa && !pb) return 0
+              if (!pa) return 1
+              if (!pb) return -1
+              return pa.localeCompare(pb)
+            })
+          }
+
+          return entries.map(e => (
+            <div key={e.key} className="assignment-card">
+              <div className="card-header">{e.val.role}</div>
               <div className="card-body">
-                <div className="card-name">{v.name}</div>
-                {v.plate && <div className="card-plate">{v.plate}</div>}
+                <div className="card-name">{e.val.name}</div>
+                {e.val.plate && <div className="card-plate">{e.val.plate}</div>}
                 <div style={{ marginTop: 12 }}>
-                  <button className="small" onClick={() => setWorkerDetail(v.workerObj || { id: k, name: v.name, role: v.role, plate: v.plate })}>Ver mas</button>
+                  <button className="small" onClick={() => setWorkerDetail(e.val.workerObj || { id: e.key, name: e.val.name, role: e.val.role, plate: e.val.plate })}>Ver mas</button>
                 </div>
               </div>
             </div>
