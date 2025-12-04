@@ -634,12 +634,7 @@ export default function ReportsScreen() {
       <Header
         title="Reportes"
         centerSlot={<input placeholder="Buscar reportes..." style={{ padding: 8, border: '1px solid #e5e7eb', borderRadius: 8 }} />}
-        rightSlot={
-          <>
-            <button className="btn">Nuevo reporte</button>
-            <button className="btn btn-outline">Exportar</button>
-          </>
-        }
+        rightSlot={null}
       />
       {loading && <p>Cargando...</p>}
       <div className="report-section">

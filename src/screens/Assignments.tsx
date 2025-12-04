@@ -391,6 +391,104 @@ export default function AssignmentsScreen() {
     return null
   }
 
+  // Open worker detail: try to resolve a full worker object from `workersList`
+  // or by refetching workers so the modal shows complete fields (email, phone, createdAt, etc.).
+  const [loadingWorkerDetail, setLoadingWorkerDetail] = useState(false)
+
+  const openWorkerDetail = async (workerObj: any | null, fallbackId: string, fallbackName?: string, fallbackRole?: string, fallbackPlate?: string) => {
+    // quick early return if we already have rich data
+    if (workerObj && (workerObj.email || workerObj.phoneNumber || workerObj.createdAt || workerObj.lastname || workerObj.rank)) {
+      setWorkerDetail(workerObj)
+      return
+    }
+
+    setLoadingWorkerDetail(true)
+    try {
+      const id = (workerObj && (workerObj.id || workerObj._id)) || fallbackId || null
+      const candidates = [] as any[]
+      if (id) candidates.push(String(id))
+      if (workerObj && workerObj.email) candidates.push(String(workerObj.email))
+
+      // Try direct GET endpoints for a single worker
+      const endpoints = ['/workers', '/users', '/employees', '/people']
+      for (const key of candidates) {
+        for (const base of endpoints) {
+          try {
+            const url = buildApiUrl(`${base}/${encodeURIComponent(String(key))}`)
+            const headers: Record<string,string> = { 'Content-Type': 'application/json' }
+            if (token) headers['Authorization'] = `Bearer ${token}`
+            const res = await fetch(url, { headers })
+            if (!res.ok) continue
+            const json = await res.json().catch(() => null)
+            if (!json) continue
+            // Try to find worker data in common shapes
+            const candidate = json.worker || json.user || json.data || json || null
+            if (!candidate) continue
+            // normalize fields similar to getWorkers
+            const normalized = {
+              id: candidate.id || candidate._id || String(candidate.id || key),
+              name: candidate.name || candidate.fullname || candidate.username || fallbackName || 'Sin nombre',
+              role: candidate.role || candidate.position || fallbackRole || 'trabajador',
+              email: candidate.email ?? null,
+              lastname: candidate.lastname || candidate.lastName || candidate.last_name || candidate.surname || '',
+              secondName: candidate.secondName || candidate.middleName || candidate.second_name || null,
+              secondLastname: candidate.secondLastname || candidate.second_lastname || null,
+              phoneNumber: candidate.phoneNumber ?? candidate.phone ?? candidate.phone_number ?? null,
+              fechaNacimiento: candidate.fechaNacimiento || candidate.birthdate || candidate.birth_date || null,
+              status: candidate.status || candidate.state || null,
+              photoUrl: candidate.photoUrl || candidate.photo_url || candidate.avatar || null,
+              assignedVehicleId: candidate.assignedVehicleId || candidate.vehicleId || fallbackPlate || null,
+              createdAt: candidate.createdAt || candidate.created_at || null,
+              // extra optional fields
+              badgeNumber: candidate.badgeNumber || candidate.badge_number || candidate.badge || null,
+              rank: candidate.rank || null,
+              yearsOfService: candidate.yearsOfService ?? candidate.years_of_service ?? null,
+              specialization: candidate.specialization || candidate.specialities || candidate.skills || null,
+              languagesSpoken: candidate.languagesSpoken || candidate.languages || null,
+              certifications: candidate.certifications || null,
+              awards: candidate.awards || null,
+              notes: candidate.notes || null,
+            }
+            setWorkerDetail(normalized)
+            return
+          } catch (e) {
+            // ignore and try next
+          }
+        }
+      }
+
+      // If direct fetches failed, try to refresh the full list and search there
+      try {
+        const refreshed = await fetchWorkers()
+        const keyCandidates = [] as string[]
+        if (workerObj) {
+          if (workerObj.id) keyCandidates.push(String(workerObj.id))
+          if ((workerObj as any)._id) keyCandidates.push(String((workerObj as any)._id))
+          if (workerObj.email) keyCandidates.push(String(workerObj.email))
+        }
+        if (fallbackId) keyCandidates.push(String(fallbackId))
+
+        let found: any = null
+        for (const c of keyCandidates) {
+          if (!c) continue
+          found = (refreshed || workersList || []).find(w => {
+            const wid = w.id || w._id || w.email
+            return wid && String(wid) === String(c)
+          })
+          if (found) break
+        }
+        if (found) { setWorkerDetail(found); return }
+      } catch (e) {
+        // ignore
+      }
+
+      // Fallback: show a minimal object with available info
+      setWorkerDetail(workerObj || { id: fallbackId, name: fallbackName || '—', role: fallbackRole || 'Empleado', assignedVehicleId: fallbackPlate || null })
+    } finally {
+      setLoadingWorkerDetail(false)
+    }
+  }
+
   const openCreate = async () => {
     setSelectedWorker(null)
     setSelectedVehicle(null)
@@ -499,7 +597,7 @@ export default function AssignmentsScreen() {
                 <div className="card-name">{e.val.name}</div>
                 {e.val.plate && <div className="card-plate">{e.val.plate}</div>}
                 <div style={{ marginTop: 12 }}>
-                  <button className="small" onClick={() => setWorkerDetail(e.val.workerObj || { id: e.key, name: e.val.name, role: e.val.role, plate: e.val.plate })}>Ver mas</button>
+                  <button className="small" onClick={async () => await openWorkerDetail(e.val.workerObj || null, e.key, e.val.name, e.val.role, e.val.plate)}>Ver mas</button>
                 </div>
               </div>
             </div>
@@ -512,34 +610,42 @@ export default function AssignmentsScreen() {
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             {(!editModeWorker && !creatingWorker) ? (
               <>
-                {typeof workerDetail.photoUrl === 'string' && workerDetail.photoUrl.trim() !== '' && (
+                {loadingWorkerDetail ? (
+                  <div style={{ padding: 16, textAlign: 'center' }}>Cargando datos…</div>
+                ) : (
+                  typeof workerDetail.photoUrl === 'string' && workerDetail.photoUrl.trim() !== '' && (
                   <div style={{ textAlign: 'center', marginBottom: 8 }}>
                     <img src={workerDetail.photoUrl} alt={String(workerDetail.name || '')} style={{ maxWidth: 160, borderRadius: 8 }} />
                   </div>
+                  )
                 )}
-                <h4>{[workerDetail.name, (workerDetail as any).secondName, (workerDetail as any).lastname, (workerDetail as any).secondLastname].filter(Boolean).join(' ')}</h4>
-                <p><strong>Rol:</strong> {renderVal(workerDetail.role)}</p>
-                <p><strong>Email:</strong> {renderVal(workerDetail.email)}</p>
-                <p><strong>Teléfono:</strong> {renderVal((workerDetail as any).phoneNumber)}</p>
-                <p><strong>Fecha de nacimiento:</strong> {((workerDetail as any).fechaNacimiento) ? (() => { try { return new Date((workerDetail as any).fechaNacimiento).toLocaleDateString() } catch { return renderVal((workerDetail as any).fechaNacimiento) } })() : '—'}</p>
-                <p><strong>Estado:</strong> {renderVal((workerDetail as any).status)}</p>
-                <p><strong>Asignación:</strong> {renderVal(workerDetail.assignedVehicleId) || '—'}</p>
-                <p><strong>ID:</strong> {renderVal(workerDetail.id)}</p>
-                <p className="muted"><strong>Creado:</strong> {renderVal(workerDetail.createdAt)}</p>
+                {!loadingWorkerDetail && (
+                  <>
+                    <h4>{[workerDetail.name, (workerDetail as any).secondName, (workerDetail as any).lastname, (workerDetail as any).secondLastname].filter(Boolean).join(' ')}</h4>
+                    <p><strong>Rol:</strong> {renderVal(workerDetail.role)}</p>
+                    <p><strong>Email:</strong> {renderVal(workerDetail.email)}</p>
+                    <p><strong>Teléfono:</strong> {renderVal((workerDetail as any).phoneNumber)}</p>
+                    <p><strong>Fecha de nacimiento:</strong> {((workerDetail as any).fechaNacimiento) ? (() => { try { return new Date((workerDetail as any).fechaNacimiento).toLocaleDateString() } catch { return renderVal((workerDetail as any).fechaNacimiento) } })() : '—'}</p>
+                    <p><strong>Estado:</strong> {renderVal((workerDetail as any).status)}</p>
+                    <p><strong>Asignación:</strong> {renderVal(workerDetail.assignedVehicleId) || '—'}</p>
+                    <p><strong>ID:</strong> {renderVal(workerDetail.id)}</p>
+                    <p className="muted"><strong>Creado:</strong> {renderVal(workerDetail.createdAt)}</p>
 
-                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                  <button className="card-button" onClick={() => setEditModeWorker(true)}>Actualizar</button>
-                  <button className="danger-btn" onClick={async () => {
-                    if (!confirm('¿Eliminar este trabajador?')) return
-                    try {
-                      if (!token) return alert('No autorizado')
-                      await deleteWorker(workerDetail.id, token)
-                      alert('Trabajador eliminado')
-                      setWorkerDetail(null)
-                    } catch (e: any) { alert(e?.message || 'Error al eliminar') }
-                  }}>Eliminar</button>
-                  <button className="close-btn" onClick={() => { setWorkerDetail(null); setEditModeWorker(false); setCreatingWorker(false) }}>Cerrar</button>
-                </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                      <button className="card-button" onClick={() => setEditModeWorker(true)}>Actualizar</button>
+                      <button className="danger-btn" onClick={async () => {
+                        if (!confirm('¿Eliminar este trabajador?')) return
+                        try {
+                          if (!token) return alert('No autorizado')
+                          await deleteWorker(workerDetail.id, token)
+                          alert('Trabajador eliminado')
+                          setWorkerDetail(null)
+                        } catch (e: any) { alert(e?.message || 'Error al eliminar') }
+                      }}>Eliminar</button>
+                      <button className="close-btn" onClick={() => { setWorkerDetail(null); setEditModeWorker(false); setCreatingWorker(false) }}>Cerrar</button>
+                    </div>
+                  </>
+                )}
               </>
             ) : (
               <>
