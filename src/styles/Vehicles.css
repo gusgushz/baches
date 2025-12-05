@@ -1,0 +1,289 @@
+.vehicles-page {
+  width: 100%;
+  padding: 0 30px;
+  box-sizing: border-box;
+}
+
+
+
+/* TABLA */
+.vehicles-table-wrapper {
+  flex: 1;
+  margin-top: 20px;
+  padding-bottom: 20px;
+  position: relative;
+  overflow: visible;
+}
+
+.vehicles-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.vehicles-table thead {
+  background: #1E3A8A;
+  color: white;
+}
+
+.vehicles-table th {
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.vehicles-table td {
+  padding: 14px;
+  font-size: 14px;
+  border-bottom: 1px solid #ddd;
+}
+
+.vehicles-table tbody tr:hover {
+  background: #eef3ff;
+  transition: 0.25s;
+}
+
+
+/* BOTÓN AGREGAR VEHÍCULO */
+.vehicles-page .button-agregar-vehiculo {
+  background-color: #1E3A8A;
+  /* Color solicitado */
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  letter-spacing: .5px;
+  transition: 0.25s ease;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
+}
+
+/* HOVER */
+.vehicles-page .button-agregar-vehiculo:hover {
+  background-color: #2746A6;
+  transform: translateY(-2px);
+  /* Efecto flotante */
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.25);
+}
+
+/* Base style for status badges */
+.status {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 13px;
+  text-transform: capitalize;
+}
+
+.status.active {
+  color: #0f5132;
+  background: #d1e7dd;
+  border: 1px solid #badbcc;
+}
+
+.status.inactive {
+  color: #842029;
+  background: #f8d7da;
+  border: 1px solid #f1b0b7;
+}
+
+.status.maintenance {
+  color: #474747;
+  background: #ded6d6;
+  border: 1px solid #a39f9f;
+}
+
+
+/* Botón de opciones (...) */
+.btn-opciones-vehiculos {
+  color: black;
+  background: #ffffff;
+  font-size: 18px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: 0.25s ease;
+}
+
+/* Menú desplegable */
+.dropdown-opciones-vehiculos {
+  position: absolute;
+  top: 35px;
+  right: 0;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 50;
+  animation: fadeIn .18s ease-out;
+}
+
+.dropdown-opciones-vehiculos button {
+  padding: 10px;
+  color: black;
+  font-size: 14px;
+  text-align: left;
+  border: none;
+  background: white;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.btn-put-vehiculos:hover {
+  background: #1E3A8A;
+  color: white;
+}
+
+/* Hover para eliminar - color rojo */
+.btn-delete-vehiculos {
+  color: #d62828;
+  font-weight: 600;
+}
+
+.btn-delete-vehiculos:hover {
+  background: #ffdddd;
+  color: #b10000;
+}
+
+/* Animación */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* MODAL */
+.modal-overlay-vehicle {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(3px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+  animation: fadeIn 0.25s ease-out;
+}
+
+/* Caja del modal */
+.modal-content-vehicle {
+  background: #F3F3F3;
+  padding: 25px 25px;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 12px 25px rgba(0, 0, 0, 0.22);
+  animation: popIn 0.25s ease-out;
+}
+
+.modal-content-vehicle h4 {
+  margin: 0 0 18px;
+  font-size: 22px;
+  font-weight: 700;
+  color: #3b4048;
+}
+
+/* Labels e inputs (una sola columna) */
+.modal-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 600;
+ color: #3b4048;
+}
+
+.modal-form input,
+.modal-form select {
+  background: white;
+   width: 90%;
+  margin-top: 4px;
+  padding: 5px;
+  border: 1.5px solid #cfcfcf;
+  border-radius: 6px;
+  color: #000000;
+
+}
+
+.modal-form input:focus,
+.modal-form select:focus {
+  border-color: #2563eb;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+}
+
+/* Botones */
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.modal-actions .card-button {
+  background: #173486;
+  border: none;
+  padding: 10px 18px;
+  font-size: 14px;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s;
+}
+
+.modal-actions .card-button:hover {
+  background: #1d4ed8;
+  transform: scale(1.03);
+}
+
+.modal-actions .card-button:active {
+  transform: scale(0.97);
+}
+
+.modal-actions .close-btn {
+  background: #e5e7eb;
+  border: none;
+  padding: 10px 18px;
+  font-size: 14px;
+  border-radius: 8px;
+  color: #374151;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.modal-actions .close-btn:hover {
+  background: #d1d5db;
+}
+
+/* Scroll del modal */
+.modal-content-vehicle::-webkit-scrollbar {
+  width: 7px;
+}
+
+.modal-content-vehicle::-webkit-scrollbar-thumb {
+  background: #9ca3af;
+  border-radius: 8px;
+}
+
+.modal-content-vehicle::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* Animaciones */
+@keyframes popIn {
+  0% { transform: scale(0.92); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes fadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}

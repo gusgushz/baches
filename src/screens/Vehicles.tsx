@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useAuth } from '../contexts/AuthContext'
 import { getVehicles, deleteVehicle, createVehicle, updateVehicle } from '../api'
-import './Vehicles.css'
-import './Employees.css'
+import "../styles/Vehicles.css"
 import Header from '../components/Header';
+import Swal from 'sweetalert2';
+import { Pencil, Trash2 } from "lucide-react";
 
 export default function VehiclesScreen() {
   const { token, isLoading } = useAuth()
@@ -24,6 +25,16 @@ export default function VehiclesScreen() {
   const [year, setYear] = useState<number | string | null>(null)
   const [color, setColor] = useState<string | null>('')
   const [corporation, setCorporation] = useState<string | null>('')
+  const [status, setStatus] = useState<string | null>('active')
+
+  const resetVehicleForm = () => {
+    setLicensePlate('')
+    setModel('')
+    setYear(null)
+    setColor(null)
+    setCorporation(null)
+    setStatus('active')
+  }
 
   useEffect(() => {
     if (!token) navigate('/login')
@@ -63,6 +74,7 @@ export default function VehiclesScreen() {
     setYear(v.year)
     setColor(v.color)
     setCorporation(v.corporation)
+    setStatus(v.status ?? 'active')
   }
 
   const handleCreate = async () => {
@@ -77,7 +89,7 @@ export default function VehiclesScreen() {
 
   const handleUpdate = async () => {
     if (!editingVehicle) return
-    const payload = { licensePlate, model, year, color, corporation }
+    const payload = { licensePlate, model, year, color, corporation, status }
     try {
       const res = await updateVehicle(editingVehicle.id, payload, token!)
       setVehicles(prev => prev?.map(v => v.id === editingVehicle.id ? res : v) || prev)
@@ -118,7 +130,7 @@ export default function VehiclesScreen() {
 
       <h3 className="vehicles-title">Vehículos ({filtered.length})</h3>
 
-      <button className="button-agregar-vehiculo" onClick={() => setIsCreating(true)}>
+      <button className="button-agregar-vehiculo" onClick={() => { resetVehicleForm(); setIsCreating(true); }}>
         + Agregar
       </button>
 
@@ -127,8 +139,13 @@ export default function VehiclesScreen() {
         <table className="vehicles-table">
           <thead>
             <tr>
-              <th>Placa</th><th>Modelo</th><th>Año</th><th>Color</th>
-              <th>Corporación</th><th>Estatus</th><th>Opciones</th>
+              <th>Placa</th>
+              <th>Modelo</th>
+              <th>Año</th>
+              <th>Color</th>
+              <th>Corporación</th>
+              <th>Estatus</th>
+              <th>Opciones</th>
             </tr>
           </thead>
 
@@ -140,15 +157,24 @@ export default function VehiclesScreen() {
                 <td>{safe(v.year)}</td>
                 <td>{safe(v.color)}</td>
                 <td>{safe(v.corporation)}</td>
-                <td>{safe(v.status)}</td>
+                <td>
+                  <span className={`status ${v.status ?? ''}`}>{safe(v.status)}</span>
+                </td>
 
                 <td style={{ position: "relative" }}>
-                  <button className='btn-opciones-vehiculos' onClick={() => setDropdownOpen(dropdownOpen === v.id ? null : v.id)}>...</button>
+                  <button className='btn-opciones-vehiculos' onClick={(e) => { e.stopPropagation(); setDropdownOpen(dropdownOpen === v.id ? null : v.id); }}>...</button>
 
                   {dropdownOpen === v.id && (
                     <div className="dropdown-opciones-vehiculos">
-                      <button onClick={() => openEdit(v)}>Actualizar</button>
-                      <button className="btn-delete-vehiculos" onClick={() => handleDelete(v.id)}>Eliminar</button>
+                      <button className='btn-put-vehiculos' onClick={() => { openEdit(v); setDropdownOpen(null); }}>
+                        <Pencil size={16} style={{ marginRight: 6 }} />
+                        Actualizar
+                      </button>
+
+                      <button className="btn-delete-vehiculos" onClick={async () => { await handleDelete(v.id); setDropdownOpen(null); }}>
+                        <Trash2 size={16} style={{ marginRight: 6 }} />
+                        Eliminar
+                      </button>
                     </div>
                   )}
                 </td>
@@ -160,8 +186,8 @@ export default function VehiclesScreen() {
 
       {/* Modal para crear/editar vehículo */}
       {(editingVehicle || isCreating) && (
-        <div className="modal-overlay" onClick={() => { setEditingVehicle(null); setIsCreating(false); }}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
+        <div className="modal-overlay-vehicle" onClick={() => { setEditingVehicle(null); setIsCreating(false); resetVehicleForm(); }}>
+          <div className="modal-content-vehicle" onClick={e => e.stopPropagation()}>
             <h4>{isCreating ? 'Agregar vehículo' : 'Editar vehículo'}</h4>
 
             <div className="modal-form">
@@ -185,18 +211,28 @@ export default function VehiclesScreen() {
                 Corporación
                 <input value={corporation ?? ''} onChange={e => setCorporation(e.target.value || null)} />
               </label>
+              {!isCreating && (
+                <label>
+                  Estado
+                  <select value={status ?? 'active'} onChange={e => setStatus(e.target.value || null)}>
+                    <option value="active">active</option>
+                    <option value="inactive">inactive</option>
+                    <option value="maintenance">maintenance</option>
+                  </select>
+                </label>
+              )}
             </div>
 
             <div className="modal-actions">
-              {isCreating ? (
+                  {isCreating ? (
                 <>
-                  <button className="card-button" onClick={async () => { await handleCreate() }}>Crear</button>
-                  <button className="close-btn" onClick={() => { setIsCreating(false) }}>Cancelar</button>
+                  <button className="card-button" onClick={async () => { await handleCreate(); resetVehicleForm(); }}>Crear</button>
+                  <button className="close-btn" onClick={() => { setIsCreating(false); resetVehicleForm(); }}>Cancelar</button>
                 </>
               ) : (
                 <>
                   <button className="card-button" onClick={async () => { await handleUpdate() }}>Guardar</button>
-                  <button className="close-btn" onClick={() => setEditingVehicle(null)}>Cancelar</button>
+                  <button className="close-btn" onClick={() => { setEditingVehicle(null); resetVehicleForm(); }}>Cancelar</button>
                 </>
               )}
             </div>
