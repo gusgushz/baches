@@ -1,7 +1,12 @@
 .nav-bar{
   width: 220px;
   min-width:180px;
-  height:100vh;
+  /* Make the sidebar fixed to the viewport so scrolling the main content
+     does not leave a blank area where the sidebar used to be. */
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
   background:#e9e9ea;
   display:flex;
   flex-direction:column;
@@ -9,6 +14,7 @@
   padding:18px 12px;
   box-sizing:border-box;
   border-right:1px solid rgba(0,0,0,0.04);
+  z-index: 60;
 }
 
 .brand{width:100%;display:flex;justify-content:center;padding:8px 0 18px 0}
@@ -32,3 +38,9 @@
   .brand-logo .brand-img{width:36px;height:36px}
   .nav-link .label{display:none}
 }
+
+/* When sidebar is fixed, content should account for its width. We keep
+   a CSS helper class for the app content to set a left margin equal to
+   the sidebar width; responsive rule matches the sidebar media query. */
+.app-content-placeholder{ margin-left: 220px; }
+@media (max-width:900px){ .app-content-placeholder{ margin-left: 72px; } }

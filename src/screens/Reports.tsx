@@ -66,18 +66,19 @@ function mapStatus(s?: string) {
   if (!s) return '—'
   const key = String(s).trim().toLowerCase()
   switch (key) {
-    case 'not_started':
-      return 'No iniciado'
-    case 'in_progress':
-      return 'En progreso'
-    case 'completed':
-      return 'Completado'
-    case 'on_hold':
-      return 'En pausa'
     case 'reported':
       return 'Reportado'
+    case 'in_progress':
+      return 'En progreso'
     case 'resolved':
       return 'Resuelto'
+    // legacy/alternate values
+    case 'not_started':
+      return 'Reportado'
+    case 'completed':
+      return 'Resuelto'
+    case 'on_hold':
+      return 'En progreso'
     default:
       return key.replace(/_/g, ' ')
   }
@@ -370,9 +371,7 @@ function ReportList({ reports, onDelete, onSelect, onEdit }: { reports: Detailed
                       <select value={String(editData.status || '')} onChange={e => setEditData({ ...editData, status: e.target.value })}>
                         <option value="reported">Reportado</option>
                         <option value="in_progress">En progreso</option>
-                        <option value="completed">Completado</option>
                         <option value="resolved">Resuelto</option>
-                        <option value="on_hold">En pausa</option>
                       </select>
                       {formErrors.status && <div className="form-error">{formErrors.status}</div>}
                     </label>
@@ -466,28 +465,67 @@ export default function ReportsScreen() {
   const [loading, setLoading] = useState(false)
   const [selectedReport, setSelectedReport] = useState<DetailedReport | null>(null)
   
-  // Edit handler passed to ReportList to update a report inline
   const handleEdit = async (id: string, payload: Partial<DetailedReport>) => {
     try {
-      const headers: Record<string,string> = { 'Content-Type': 'application/json', 'Accept': 'application/json' }
-      if (token) headers['Authorization'] = `Bearer ${token}`
-      const url = buildApiUrl(`/reports/${id}`)
-      const res = await fetch(url, { method: 'PUT', headers, body: JSON.stringify(payload) })
-      if (!res.ok) {
-        // Try to parse JSON error body if provided by backend
-        let errText = `Status ${res.status}`
-        try {
-          const json = await res.json()
-          if (json) errText += ` - ${JSON.stringify(json)}`
-        } catch (parseErr) {
-          const text = await res.text().catch(() => '')
-          if (text) errText += ` - ${text}`
-        }
-        throw new Error(`Edit failed: ${errText}`)
+      // Buscar el reporte original
+      const original = reports.find(r => r.id === id)
+      if (!original) throw new Error('Reporte no encontrado en memoria')
+
+      // Construir el payload COMPLETO que la DB necesita
+      // Mapeo de estados UI -> enum esperado por el backend
+      const uiStatus = (payload.status ?? original.status ?? '').toString().trim().toLowerCase()
+      const allowed = ['reported', 'in_progress', 'resolved']
+      let backendStatus = 'reported'
+      if (allowed.includes(uiStatus)) backendStatus = uiStatus
+      else {
+        if (uiStatus === 'not_started') backendStatus = 'reported'
+        else if (uiStatus === 'completed') backendStatus = 'resolved'
+        else if (uiStatus === 'on_hold') backendStatus = 'in_progress'
+        else backendStatus = 'reported'
       }
-      // Refresh list and update selection
+
+      const fullPayload: Record<string, any> = {
+        latitude: original.location?.lat,
+        longitude: original.location?.lng,
+        street: payload.street ?? original.street,
+        neighborhood: payload.neighborhood ?? original.neighborhood,
+        city: payload.city ?? original.city,
+        state: payload.state ?? original.state,
+        postalCode: payload.postalCode ?? original.postalCode,
+        description: payload.description ?? original.description,
+        date: original.createdAt,
+        reportedByVehicleId: original.reportedByVehicle?.id ?? null,
+        reportedByWorkerId: original.reportedByWorker?.id ?? null,
+        status: backendStatus,
+        severity: payload.severity ?? original.severity,
+        comments: payload.comments ?? original.comments,
+        images: original.images ?? [],
+        updatedAt: new Date().toISOString()
+      }
+
+      try { console.log('FULL PAYLOAD ENVIADO:', JSON.stringify(fullPayload)) } catch (e) { console.log('FULL PAYLOAD ENVIADO', fullPayload) }
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      const url = buildApiUrl(`/reports/${id}`)
+
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(fullPayload)
+      })
+
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '')
+        throw new Error(`Edit failed: Status ${res.status} - ${txt}`)
+      }
+
       await loadReports()
-      setSelectedReport(prev => prev && prev.id === id ? { ...prev, ...(payload as any) } : prev)
+
     } catch (e) {
       console.error('Error editando reporte', e)
       throw e
@@ -528,7 +566,19 @@ export default function ReportsScreen() {
         id: r.id || r._id || String(r.id || Math.random()),
         description: r.description || r.comments || '',
         severity: r.severity || 'medium',
-        status: r.status || 'reported',
+        status: (() => {
+          const s = r.status ? String(r.status).trim().toLowerCase() : ''
+          // Backend enum: 'reported' | 'in_progress' | 'resolved'
+          const allowed = ['reported', 'in_progress', 'resolved']
+          if (allowed.includes(s)) return s
+          // map legacy values into the backend enum
+          if (s === 'not_started') return 'reported'
+          if (s === 'completed') return 'resolved'
+          if (s === 'on_hold') return 'in_progress'
+          if (s === 'reported') return 'reported'
+          if (s === 'resolved') return 'resolved'
+          return 'reported'
+        })(),
         comments: r.comments || '',
         street: r.street || '',
         neighborhood: r.neighborhood || '',
@@ -584,12 +634,7 @@ export default function ReportsScreen() {
       <Header
         title="Reportes"
         centerSlot={<input placeholder="Buscar reportes..." style={{ padding: 8, border: '1px solid #e5e7eb', borderRadius: 8 }} />}
-        rightSlot={
-          <>
-            <button className="btn">Nuevo reporte</button>
-            <button className="btn btn-outline">Exportar</button>
-          </>
-        }
+        rightSlot={null}
       />
       {loading && <p>Cargando...</p>}
       <div className="report-section">
