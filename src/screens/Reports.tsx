@@ -83,15 +83,12 @@ function mapStatus(s?: string) {
       return 'Reportado'
     case 'in_progress':
       return 'En progreso'
+    case 'completed':
+      return 'Completado'
+    case 'on_hold':
+      return 'En pausa'
     case 'resolved':
       return 'Resuelto'
-    // legacy/alternate values
-    case 'not_started':
-      return 'Reportado'
-    case 'completed':
-      return 'Resuelto'
-    case 'on_hold':
-      return 'En progreso'
     default:
       return key.replace(/_/g, ' ')
   }
@@ -349,12 +346,12 @@ function ReportList({ reports, onDelete, onSelect, onEdit }: { reports: Detailed
                     await onEdit(detailReport.id, editData)
                     setSuccessMessage('Reporte actualizado correctamente.')
                     // update modal detail with local changes
-                    setDetailReport(prev => prev ? { ...prev, ...(editData as any) } : prev)
+                    setDetailReport(prev => prev ? { ...prev, ...(editData || {}) } : prev)
                     setIsEditing(false)
                     setTimeout(() => setSuccessMessage(null), 3500)
-                  } catch (err: any) {
+                  } catch (err: unknown) {
                     console.error(err)
-                    const msg = err && err.message ? String(err.message) : 'No se pudo actualizar el reporte. Intenta de nuevo.'
+                    const msg = (err as Error)?.message ? String((err as Error).message) : 'No se pudo actualizar el reporte. Intenta de nuevo.'
                     setErrorMessage(msg)
                     setTimeout(() => setErrorMessage(null), 7000)
                   }
@@ -384,7 +381,9 @@ function ReportList({ reports, onDelete, onSelect, onEdit }: { reports: Detailed
                       <select value={String(editData.status || '')} onChange={e => setEditData({ ...editData, status: e.target.value })}>
                         <option value="reported">Reportado</option>
                         <option value="in_progress">En progreso</option>
+                        <option value="completed">Completado</option>
                         <option value="resolved">Resuelto</option>
+                        <option value="on_hold">En pausa</option>
                       </select>
                       {formErrors.status && <div className="form-error">{formErrors.status}</div>}
                     </label>
@@ -483,65 +482,26 @@ export default function ReportsScreen() {
   const [selectedReport, setSelectedReport] = useState<DetailedReport | null>(null)
   const [search, setSearch] = useState('')
   
+  // Edit handler passed to ReportList to update a report inline
   const handleEdit = async (id: string, payload: Partial<DetailedReport>) => {
     try {
-      // Buscar el reporte original
-      const original = reports.find(r => r.id === id)
-      if (!original) throw new Error('Reporte no encontrado en memoria')
-
-      // Construir el payload COMPLETO que la DB necesita
-      // Mapeo de estados UI -> enum esperado por el backend
-      const uiStatus = (payload.status ?? original.status ?? '').toString().trim().toLowerCase()
-      const allowed = ['reported', 'in_progress', 'resolved']
-      let backendStatus = 'reported'
-      if (allowed.includes(uiStatus)) backendStatus = uiStatus
-      else {
-        if (uiStatus === 'not_started') backendStatus = 'reported'
-        else if (uiStatus === 'completed') backendStatus = 'resolved'
-        else if (uiStatus === 'on_hold') backendStatus = 'in_progress'
-        else backendStatus = 'reported'
-      }
-
-      const fullPayload: Record<string, any> = {
-        latitude: original.location?.lat,
-        longitude: original.location?.lng,
-        street: payload.street ?? original.street,
-        neighborhood: payload.neighborhood ?? original.neighborhood,
-        city: payload.city ?? original.city,
-        state: payload.state ?? original.state,
-        postalCode: payload.postalCode ?? original.postalCode,
-        description: payload.description ?? original.description,
-        date: original.createdAt,
-        reportedByVehicleId: original.reportedByVehicle?.id ?? null,
-        reportedByWorkerId: original.reportedByWorker?.id ?? null,
-        status: backendStatus,
-        severity: payload.severity ?? original.severity,
-        comments: payload.comments ?? original.comments,
-        images: original.images ?? [],
-        updatedAt: new Date().toISOString()
-      }
-
-      try { console.log('FULL PAYLOAD ENVIADO:', JSON.stringify(fullPayload)) } catch (e) { console.log('FULL PAYLOAD ENVIADO', fullPayload) }
-
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      }
+      const headers: Record<string,string> = { 'Content-Type': 'application/json', 'Accept': 'application/json' }
       if (token) headers['Authorization'] = `Bearer ${token}`
-
       const url = buildApiUrl(`/reports/${id}`)
-
-      const res = await fetch(url, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(fullPayload)
-      })
-
+      const res = await fetch(url, { method: 'PUT', headers, body: JSON.stringify(payload) })
       if (!res.ok) {
-        const txt = await res.text().catch(() => '')
-        throw new Error(`Edit failed: Status ${res.status} - ${txt}`)
+        // Try to parse JSON error body if provided by backend
+        let errText = `Status ${res.status}`
+        try {
+          const json = await res.json()
+          if (json) errText += ` - ${JSON.stringify(json)}`
+        } catch (parseErr) {
+          const text = await res.text().catch(() => '')
+          if (text) errText += ` - ${text}`
+        }
+        throw new Error(`Edit failed: ${errText}`)
       }
-
+      // Refresh list and update selection
       await loadReports()
 
       // Animación de éxito al editar
@@ -552,7 +512,6 @@ export default function ReportsScreen() {
         timer: 1400,
         showConfirmButton: false
       })
-
     } catch (e) {
       console.error('Error editando reporte', e)
       throw e
@@ -577,59 +536,98 @@ export default function ReportsScreen() {
     try {
       const headers: Record<string,string> = { 'Content-Type': 'application/json' }
       if (token) headers['Authorization'] = `Bearer ${token}`
-      // Request a large limit to try to retrieve all reports from the backend
-      // (some backends default to 10 items per page). If the backend doesn't
-      // support `limit`, this will simply be ignored by the server.
-      const res = await fetch(buildApiUrl('/reports?limit=100000'), { headers })
-      if (!res.ok) {
-        const body = await res.text().catch(() => '')
-        console.warn('Carga de reportes respondio:', res.status, body)
-        setReports([])
-        return
+      
+      // Intentar cargar todos los reportes con paginación
+      let allItems: any[] = []
+      let skip = 0
+      const limit = 100
+      let hasMore = true
+      
+      while (hasMore) {
+        const res = await fetch(buildApiUrl(`/reports?limit=${limit}&skip=${skip}`), { headers })
+        if (!res.ok) {
+          console.warn('Carga de reportes respondio:', res.status)
+          hasMore = false
+          break
+        }
+        const data = await res.json().catch(() => null)
+        const items = (data && (data.reports || data.data || data)) || []
+        
+        if (!Array.isArray(items)) {
+          console.warn('Respuesta no es un array:', items)
+          hasMore = false
+          break
+        }
+        
+        allItems = allItems.concat(items)
+        console.log(`Cargados ${allItems.length} reportes (última página: ${items.length} items)`)
+        
+        // Si obtuvimos menos items que el limit, no hay más páginas
+        if (items.length < limit) {
+          hasMore = false
+        }
+        
+        skip += limit
       }
-      const data = await res.json().catch(() => null)
-      const items = (data && (data.reports || data.data || data)) || []
-      const normalized = (items as any[]).map(r => ({
-        id: r.id || r._id || String(r.id || Math.random()),
-        description: r.description || r.comments || '',
-        severity: r.severity || 'medium',
-        status: (() => {
-          const s = r.status ? String(r.status).trim().toLowerCase() : ''
-          // Backend enum: 'reported' | 'in_progress' | 'resolved'
-          const allowed = ['reported', 'in_progress', 'resolved']
-          if (allowed.includes(s)) return s
-          // map legacy values into the backend enum
-          if (s === 'not_started') return 'reported'
-          if (s === 'completed') return 'resolved'
-          if (s === 'on_hold') return 'in_progress'
-          if (s === 'reported') return 'reported'
-          if (s === 'resolved') return 'resolved'
-          return 'reported'
-        })(),
-        comments: r.comments || '',
-        street: r.street || '',
-        neighborhood: r.neighborhood || '',
-        city: r.city || '',
-        state: r.state || r.stateName || '',
-        postalCode: r.postalCode || r.postal_code || '',
-        location: r.location ? r.location : (r.latitude !== undefined && r.longitude !== undefined ? { lat: r.latitude, lng: r.longitude } : null),
-        images: Array.isArray(r.images) ? r.images : (r.photo ? [r.photo] : []),
-        // support variations returned by different backends
-        reportedByVehicle: r.reportedByVehicle || r.vehicle || (r.vehicleId || r.plate || r.licensePlate ? {
-          id: r.vehicleId || undefined,
-          licensePlate: r.licensePlate || r.plate || undefined,
-          plate: r.plate || r.licensePlate || undefined,
-          model: r.vehicleModel || r.model || undefined,
-          brand: r.vehicleBrand || r.brand || undefined,
-        } : undefined),
-        reportedByWorker: r.reportedByWorker || r.worker || r.reporter || (r.workerId || r.workerName || r.email ? {
-          id: r.workerId || undefined,
-          name: r.workerName || r.name || undefined,
-          lastname: r.workerLastname || r.lastname || undefined,
-          email: r.email || r.workerEmail || undefined,
-        } : undefined),
-        createdAt: r.createdAt || r.date || new Date().toISOString()
-      }))
+      
+      const items = allItems
+      const normalized = (items as unknown[]).map((r: unknown) => {
+        const rr = r as Record<string, unknown>
+        const id = (rr.id ?? rr._id) as string | undefined
+        const description = (rr.description as string) ?? (rr.comments as string) ?? ''
+        const severity = (rr.severity as string) ?? 'medium'
+        const status = (rr.status as string) ?? 'reported'
+        const comments = (rr.comments as string) ?? ''
+        const street = (rr.street as string) ?? ''
+        const neighborhood = (rr.neighborhood as string) ?? ''
+        const city = (rr.city as string) ?? ''
+        const state = (rr.state as string) ?? (rr.stateName as string) ?? ''
+        const postalCode = (rr.postalCode as string) ?? (rr.postal_code as string) ?? ''
+        const maybeLoc = rr.location as unknown
+        let location: Location | null = null
+        if (maybeLoc && typeof maybeLoc === 'object' && 'lat' in (maybeLoc as Record<string, unknown>) && 'lng' in (maybeLoc as Record<string, unknown>)) {
+          const m = maybeLoc as Record<string, unknown>
+          const lat = Number(m.lat as any)
+          const lng = Number(m.lng as any)
+          if (!Number.isNaN(lat) && !Number.isNaN(lng)) location = { lat, lng }
+        } else if (rr.latitude !== undefined && rr.longitude !== undefined) {
+          const lat = Number(rr.latitude as any)
+          const lng = Number(rr.longitude as any)
+          if (!Number.isNaN(lat) && !Number.isNaN(lng)) location = { lat, lng }
+        }
+        const images = Array.isArray(rr.images) ? (rr.images as string[]) : ((rr.photo as string) ? [rr.photo as string] : [])
+        const reportedByVehicle = (rr.reportedByVehicle as any) || (rr.vehicle as any) || ((rr.vehicleId || rr.plate || rr.licensePlate) ? {
+          id: rr.vehicleId as string | undefined,
+          licensePlate: rr.licensePlate as string | undefined,
+          plate: rr.plate as string | undefined,
+          model: (rr.vehicleModel as string) ?? (rr.model as string) ?? undefined,
+          brand: (rr.vehicleBrand as string) ?? (rr.brand as string) ?? undefined,
+        } : undefined)
+        const reportedByWorker = (rr.reportedByWorker as any) || (rr.worker as any) || (rr.reporter as any) || ((rr.workerId || rr.workerName || rr.email) ? {
+          id: rr.workerId as string | undefined,
+          name: rr.workerName as string | undefined,
+          lastname: rr.workerLastname as string | undefined,
+          email: rr.email as string | undefined,
+        } : undefined)
+        const createdAt = (rr.createdAt as string) ?? (rr.date as string) ?? new Date().toISOString()
+        return {
+          id: String(id ?? Math.random()),
+          description,
+          severity,
+          status,
+          comments,
+          street,
+          neighborhood,
+          city,
+          state,
+          postalCode,
+          location,
+          images,
+          reportedByVehicle,
+          reportedByWorker,
+          createdAt
+        };
+      });
       setReports(normalized)
     } catch (e) {
       console.error('Error cargando reportes', e)

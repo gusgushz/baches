@@ -10,7 +10,7 @@
 
 .app-header{
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 1rem;
   padding: 0.6rem 1rem;
@@ -23,11 +23,51 @@
   border-color: #0f172a;
 }
 
-.app-header__left{display:flex;align-items:center;gap:0.75rem}
-.app-header__logo{width:40px;height:40px;object-fit:contain;border-radius:8px}
+.app-header__left{
+  display:flex;
+  align-items:center;
+  gap:0.75rem;
+}
+
+.sidebar-toggle {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  width: 36px;
+  height: 36px;
+}
+
+.sidebar-toggle:hover {
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.sidebar-toggle:active {
+  transform: scale(0.95);
+}
+
+.sidebar-toggle:active {
+  transform: scale(0.95);
+}
+
+.app-header__logo{
+  width:40px;
+  height:40px;
+  object-fit:contain;
+  border-radius:8px;
+}
 .app-header__title{font-size:1.15rem;font-weight:700;color:var(--fg);margin:0}
 
 .app-header__center{display:flex;align-items:center;justify-content:flex-start;gap:0.5rem}
+
+/* Modifier: center the center slot horizontally */
+.app-header--centered .app-header__center{justify-content:center}
 .app-header__right{display:flex;align-items:center;justify-content:flex-end;gap:0.75rem}
 
 /* search inside header */

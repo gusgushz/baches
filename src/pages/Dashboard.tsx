@@ -75,6 +75,43 @@ export default function DashboardScreen({
   async function fetchAll(path: string) {
     const base = getBase();
     try {
+      // Para reportes, cargar todos con paginación
+      if (path === 'reports') {
+        let allItems: unknown[] = []
+        let skip = 0
+        const limit = 100
+        let hasMore = true
+        
+        while (hasMore) {
+          const res = await fetch(`${base}/${path}?limit=${limit}&skip=${skip}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          });
+          if (!res.ok) {
+            const txt = await res.text().catch(() => '');
+            throw new Error(`API ${path} respondió ${res.status}. ${txt}`);
+          }
+          const data = await res.json();
+          const items = Array.isArray(data) ? data : (data?.reports ?? data?.data ?? []);
+          
+          if (!Array.isArray(items)) {
+            hasMore = false;
+            break;
+          }
+          
+          allItems = allItems.concat(items);
+          console.log(`Dashboard: Cargados ${allItems.length} reportes`);
+          
+          if (items.length < limit) {
+            hasMore = false;
+          }
+          
+          skip += limit;
+        }
+        
+        return allItems;
+      }
+      
+      // Para otros endpoints, hacer un simple fetch
       const res = await fetch(`${base}/${path}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
@@ -103,13 +140,15 @@ export default function DashboardScreen({
       try {
         const r = await fetchAll('reports');
         const arrReports = Array.isArray(r) ? r : (r?.data ?? []);
-        const normalized: Report[] = arrReports.map((x: any) => ({
-          id: x.id ?? x._id,
-          severity: x.severity ?? 'unknown',
-          status: x.status ?? 'reported',
-          city: x.city ?? x.town ?? x.village ?? 'Sin ciudad',
-          createdAt: x.createdAt ?? x.date ?? new Date().toISOString(),
-        }));
+        const normalized: Report[] = (arrReports as unknown[]).map((x: unknown) => {
+          const r = x as Record<string, unknown>;
+          const id = (r.id ?? r._id) as string | undefined;
+          const severity = (r.severity as string) ?? 'unknown';
+          const status = (r.status as string) ?? 'reported';
+          const city = (r.city as string) ?? (r.town as string) ?? (r.village as string) ?? 'Sin ciudad';
+          const createdAt = (r.createdAt as string) ?? (r.date as string) ?? new Date().toISOString();
+          return { id: String(id ?? ''), severity, status, city, createdAt };
+        });
         if (!cancelled) setReports(normalized);
 
         const a = await fetchAll('assignments');
@@ -124,8 +163,8 @@ export default function DashboardScreen({
         const arrW = Array.isArray(w) ? w : (w?.data ?? []);
         if (!cancelled) setWorkersCount(arrW.length);
         if (!cancelled) setLastUpdated(new Date().toISOString());
-      } catch (e: any) {
-          if (!cancelled) setError(`No se pudieron cargar datos: ${(e as any)?.message ?? String(e)}`);
+      } catch (e: unknown) {
+          if (!cancelled) setError(`No se pudieron cargar datos: ${(e as Error)?.message ?? String(e)}`);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -171,13 +210,15 @@ export default function DashboardScreen({
     try {
       const r = await fetchAll('reports');
       const arrReports = Array.isArray(r) ? r : (r?.data ?? []);
-      const normalized: Report[] = arrReports.map((x: any) => ({
-        id: x.id ?? x._id,
-        severity: x.severity ?? 'unknown',
-        status: x.status ?? 'reported',
-        city: x.city ?? x.town ?? x.village ?? 'Sin ciudad',
-        createdAt: x.createdAt ?? x.date ?? new Date().toISOString(),
-      }));
+      const normalized: Report[] = (arrReports as unknown[]).map((x: unknown) => {
+        const r = x as Record<string, unknown>;
+        const id = (r.id ?? r._id) as string | undefined;
+        const severity = (r.severity as string) ?? 'unknown';
+        const status = (r.status as string) ?? 'reported';
+        const city = (r.city as string) ?? (r.town as string) ?? (r.village as string) ?? 'Sin ciudad';
+        const createdAt = (r.createdAt as string) ?? (r.date as string) ?? new Date().toISOString();
+        return { id: String(id ?? ''), severity, status, city, createdAt };
+      });
       setReports(normalized);
 
       const a = await fetchAll('assignments');
@@ -193,8 +234,8 @@ export default function DashboardScreen({
       setWorkersCount(arrW.length);
 
       setLastUpdated(new Date().toISOString());
-    } catch (e: any) {
-        setError(`No se pudieron actualizar datos: ${(e as any)?.message ?? String(e)}`);
+    } catch (e: unknown) {
+      setError(`No se pudieron actualizar datos: ${(e as Error)?.message ?? String(e)}`);
     }
   };
 
@@ -278,14 +319,40 @@ export default function DashboardScreen({
 
   const last7 = lastNDays(7);
 
+  // Saludo según la hora local (solo para el header de dashboard)
+  const greeting = (() => {
+    try {
+      const h = new Date().getHours();
+      if (h >= 5 && h < 12) return 'Buenos días';
+      if (h >= 12 && h < 20) return 'Buenas tardes';
+      return 'Buenas noches';
+    } catch (_e) {
+      return 'Hola';
+    }
+  })();
+
+  // Intentar extraer el primer nombre para saludar de forma natural
+  const firstName = (() => {
+    try {
+      const n = String(displayName || '').trim();
+      if (!n) return 'Usuario';
+      return n.split(' ')[0];
+    } catch (_e) { return String(displayName || 'Usuario') }
+  })();
+
   return (
     <div className="page metrics-page">
       <Header
         title="Inicio"
-        centerSlot={<span>Métricas</span>}
+        leftSlot={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--fg)' }}>{`${greeting}, ${firstName}`}</div>
+          </div>
+        }
+        centerSlot={<span />}
         rightSlot={
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <div className="header-greeting"><span className="avatar">👤</span> Hola, {displayName}</div>
+            <div className="header-greeting"><span className="avatar">👤</span></div>
           </div>
         }
       />
