@@ -47,6 +47,17 @@ function formatDate(iso?: string) {
   }
 }
 
+function getImageSrc(base64: string): string {
+  // si comienza con /9j/ es un JPEG
+  if (base64.startsWith("/9j/")) return `data:image/jpeg;base64,${base64}`
+
+  // si comienza con iVBORw es un PNG
+  if (base64.startsWith("iVBOR")) return `data:image/png;base64,${base64}`
+
+  // fallback general
+  return `data:image/*;base64,${base64}`
+}
+
 function normalizeSeverity(raw?: string): 'low' | 'medium' | 'high' | null {
   if (!raw) return null
   const v = String(raw).trim().toLowerCase()
@@ -243,7 +254,7 @@ function ReportList({ reports, onDelete, onSelect, onEdit }: { reports: Detailed
 
       {preview && (
         <div className="image-modal" onClick={() => setPreview(null)}>
-          <img src={preview} alt="preview large" />
+          <img src={getImageSrc(preview)} alt="preview large" />
         </div>
       )}
 
@@ -302,7 +313,7 @@ function ReportList({ reports, onDelete, onSelect, onEdit }: { reports: Detailed
                     <div className="image-row" style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       {detailReport.images.map((img, idx) => (
                         <div key={idx} className="photo-thumb" style={{ cursor: 'pointer' }}>
-                          <img src={img} alt={`foto-${idx}`} onClick={() => setPreview(img || null)} />
+                          <img src={getImageSrc(img)} alt={`foto-${idx}`} onClick={() => setPreview(img || null)} />
                         </div>
                       ))}
                     </div>
