@@ -6,3 +6,15 @@
   width: 100%;
   min-height: 100vh;
 }
+
+/* content area padding and basic layout adjustments */
+.app-content-placeholder{
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 20px 24px;
+  background: #fff;
+}
+
+@media (max-width:900px){
+  .app-content-placeholder{ padding: 12px; }
+}

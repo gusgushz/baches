@@ -6,4 +6,6 @@ export interface Vehicle {
   color?: string | null;
   corporation?: string | null;
   status: string;
+  // id del trabajador asignado (si aplica)
+  assignedWorkerId?: string | null;
 }

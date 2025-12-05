@@ -1,36 +1,43 @@
-const API_URL_BASE = (import.meta.env.VITE_BACKEND_URL ? String(import.meta.env.VITE_BACKEND_URL).replace(/\/$/, '') : 'https://baches-yucatan.onrender.com') + '/api/workers';
+const API_BASE = (import.meta as any).env?.VITE_BACKEND_URL
+const DEFAULT_URL = 'https://baches-yucatan.onrender.com/api/workers'
 
-type UpdatePayload = {
-  name?: string;
-  secondName?: string | null;
-  lastname?: string;
-  secondLastname?: string | null;
-  role?: string;
-  email?: string | null;
-  phoneNumber?: number | string | null;
-  fechaNacimiento?: string | null; // ISO date
-  status?: string | null;
-  photoUrl?: string | null;
-  assignedVehicleId?: string | null;
-};
+export default async function updateWorker(id: string, payload: Record<string, any>, token?: string) {
+  if (!id) throw new Error('updateWorker: id is required')
+  if (!token) throw new Error('No autorizado')
 
-const updateWorker = async (id: string, data: UpdatePayload, token?: string) => {
-  if (!token) throw new Error('No autorizado');
-  const res = await fetch(`${API_URL_BASE}/${id}`, {
+  const baseRaw = API_BASE ?? DEFAULT_URL
+  const base = String(baseRaw).replace(/\/+$/, '')
+  const url = base.endsWith('/api/workers') || base.endsWith('/workers') ? `${base}/${encodeURIComponent(id)}` : base.endsWith('/api') ? `${base}/workers/${encodeURIComponent(id)}` : `${base}/api/workers/${encodeURIComponent(id)}`
+  console.debug('updateWorker ->', { url, id, payload })
+
+  const res = await fetch(url, {
     method: 'PUT',
     headers: {
-      'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
     },
-    body: JSON.stringify(data),
-  });
+    body: JSON.stringify(payload)
+  })
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err?.message || `Error ${res.status}`);
+    let parsedBody: any = null
+    let rawText = ''
+    try {
+      parsedBody = await res.json()
+      rawText = JSON.stringify(parsedBody)
+    } catch {
+      rawText = await res.text().catch(() => '')
+    }
+    console.error('updateWorker error response:', { status: res.status, body: parsedBody ?? rawText })
+    const msg = (parsedBody && (parsedBody.message || parsedBody.error)) || rawText || `Error ${res.status}`
+    const err: any = new Error(msg)
+    err.status = res.status
+    err.url = url
+    err.body = parsedBody ?? rawText
+    throw err
   }
 
-  return res.json().catch(() => ({}));
-};
-
-export default updateWorker;
+  const json = await res.json().catch(() => null)
+  console.debug('updateWorker response json:', json)
+  return json || true
+}

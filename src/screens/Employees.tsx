@@ -1,184 +1,125 @@
-import React, { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router'
-import { useAuth } from '../contexts/AuthContext'
-import type { Employee } from '../models'
-import { getWorkers, deleteWorker, updateWorker, createWorker } from '../api'
-import './Employees.css'
+import { useEffect, useState } from 'react'
 import Header from '../components/Header'
-
-class ModalErrorBoundary extends React.Component<any, { hasError: boolean; error?: any }> {
-  constructor(props: any) {
-    super(props)
-    this.state = { hasError: false, error: undefined }
-  }
-  static getDerivedStateFromError(error: any) {
-    return { hasError: true, error }
-  }
-  componentDidCatch(error: any, info: any) {
-    console.error('Error rendering modal:', error, info)
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h4>Error mostrando datos</h4>
-            <p>Ocurrió un error al mostrar los detalles del trabajador.</p>
-            <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 200, overflow: 'auto' }}>{String(this.state.error)}</pre>
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button className="close-btn" onClick={() => { if (this.props.onClose) this.props.onClose() }}>Cerrar</button>
-            </div>
-          </div>
-        </div>
-      )
-    }
-    return this.props.children
-  }
-}
+import { useAuth } from '../contexts/AuthContext'
+import type { Employee } from '../models/Employees'
+import getWorkers from '../api/getWorkers'
+import deleteWorker from '../api/deleteWorker'
+import createWorker from '../api/createWorker'
+import updateWorker from '../api/updateWorker'
+import "../styles/Employees.css"
+import Swal from 'sweetalert2';
+import { Pencil, Trash2 } from "lucide-react";
 
 export default function EmployeesScreen() {
-  const { token, isLoading } = useAuth()
-  const navigate = useNavigate()
+    const { token } = useAuth()
+    const [workers, setWorkers] = useState<Employee[]>([])
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+    const [dropdownOpen, setDropdownOpen] = useState<Employee['id'] | null>(null)
+    const [deletingId, setDeletingId] = useState<Employee['id'] | null>(null)
+    //Agregar trabajador
+    const [createOpen, setCreateOpen] = useState(false)
+    const [creating, setCreating] = useState(false)
+    const [createError, setCreateError] = useState<string | null>(null)
+    const [newName, setNewName] = useState('')
+    const [newSecondName, setNewSecondName] = useState<string | null>(null)
+    const [newLastname, setNewLastname] = useState('')
+    const [newSecondLastname, setNewSecondLastname] = useState<string | null>(null)
+    const [newRole, setNewRole] = useState('')
+    const [newEmail, setNewEmail] = useState<string | null>(null)
+    const [newPhone, setNewPhone] = useState<string | number | null>(null)
+    const [newFechaNacimiento, setNewFechaNacimiento] = useState<string | null>(null)
+    const [newPassword, setNewPassword] = useState<string | null>(null)
+    const [showPassword, setShowPassword] = useState(false);
+    const [passwordErrorList, setPasswordErrorList] = useState<string[]>([]);
 
-  const [workers, setWorkers] = useState<Employee[] | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [searchWorkers, setSearchWorkers] = useState('')
+    const [newStatus, setNewStatus] = useState<string | null>('active')
+    const [newPhotoFile, setNewPhotoFile] = useState<File | null>(null);
+    const [newPhotoPreview, setNewPhotoPreview] = useState<string | null>(null);
+    // Edit worker
+    const [editOpen, setEditOpen] = useState(false)
+    const [editId, setEditId] = useState<string | null>(null)
+    const [editCreating, setEditCreating] = useState(false)
+    const [editError, setEditError] = useState<string | null>(null)
+    const [editName, setEditName] = useState('')
+    const [editSecondName, setEditSecondName] = useState<string | null>(null)
+    const [editLastname, setEditLastname] = useState('')
+    const [editSecondLastname, setEditSecondLastname] = useState<string | null>(null)
+    const [editRole, setEditRole] = useState<string | null>(null)
+    const [editEmail, setEditEmail] = useState<string | null>(null)
+    const [editPhone, setEditPhone] = useState<string | number | null>(null)
+    const [editFechaNacimiento, setEditFechaNacimiento] = useState<string | null>(null)
+    const [editStatus, setEditStatus] = useState<string | null>('active')
+    const [editPhotoFile, setEditPhotoFile] = useState<File | null>(null);
+    const [editPhotoPreview, setEditPhotoPreview] = useState<string | null>(null);
+    const [editPassword, setEditPassword] = useState<string | null>(null)
+    const [editShowPassword, setEditShowPassword] = useState(false)
+    const [editPasswordErrorList, setEditPasswordErrorList] = useState<string[]>([])
 
-  // Modal
-  const [modalWorker, setModalWorker] = useState<Employee | null>(null)
-  const [editMode, setEditMode] = useState(false)
-  const [creating, setCreating] = useState(false)
-  const [editName, setEditName] = useState('')
-  const [editSecondName, setEditSecondName] = useState<string | null>(null)
-  const [editLastname, setEditLastname] = useState('')
-  const [editSecondLastname, setEditSecondLastname] = useState<string | null>(null)
-  const [editRole, setEditRole] = useState('')
-  const [editEmail, setEditEmail] = useState<string | null>(null)
-  const [editPhoneNumber, setEditPhoneNumber] = useState<string | number | null>(null)
-  const [editFechaNacimiento, setEditFechaNacimiento] = useState<string | null>(null)
-  const [editStatus, setEditStatus] = useState<string | null>(null)
-  const [editPhotoUrl, setEditPhotoUrl] = useState<string | null>(null)
-  const [editAssignedVehicleId, setEditAssignedVehicleId] = useState<string | null>(null)
 
-  // Cargar trabajadores
-  useEffect(() => {
-    if (isLoading) return
-    if (!token) {
-      navigate('/login')
-      return
+
+    const openEdit = (w: Employee) => {
+        // populate edit form
+        setEditId(w.id || null)
+        setEditName(w.name || '')
+        setEditSecondName((w as any).secondName ?? null)
+        setEditLastname(w.lastname || '')
+        setEditSecondLastname((w as any).secondLastname ?? null)
+        setEditRole((w as any).role ?? null)
+        setEditEmail(w.email ?? null)
+        setEditPhone((w as any).phoneNumber ?? null)
+        setEditFechaNacimiento((w as any).fechaNacimiento ?? null)
+        setEditStatus((w as any).status ?? 'active')
+        setEditPhotoFile(null);
+        setEditPhotoPreview((w as any).photoUrl ?? null)
+        setEditPassword(null)
+        setEditPasswordErrorList([])
+        setEditShowPassword(false)
+        setEditError(null)
+        setEditOpen(true)
+        setDropdownOpen(null)
     }
 
-    const loadWorkers = async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const items = await getWorkers(token)
-        setWorkers(items)
-      } catch (e: any) {
-        setError(e?.message || 'Error cargando trabajadores')
-        setWorkers([])
-      } finally {
-        setLoading(false)
-      }
-    }
+    const handleDelete = async (id: Employee['id']) => {
+        const confirm = await Swal.fire({
+            title: '¿Eliminar este trabajador?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Eliminar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#d33',
+        });
 
-    loadWorkers()
-  }, [token, isLoading, navigate])
+        // Si el usuario cancela
+        if (!confirm.isConfirmed) return;
+        if (!id) return;
 
-  const safeWorkers = workers || []
-  const renderVal = (v: any) => {
-    if (v === null || v === undefined) return '—'
-    if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return String(v)
-    if (Array.isArray(v)) return v.map(i => (typeof i === 'object' ? JSON.stringify(i) : String(i))).join(', ')
-    try {
-      return JSON.stringify(v)
-    } catch {
-      return String(v)
-    }
-  }
+        try {
+            setDeletingId(id);
+            setError(null);
 
-  const filteredWorkers = safeWorkers.filter(w =>
-    w.name.toLowerCase().includes(searchWorkers.toLowerCase()) ||
-    (w.email || '').toLowerCase().includes(searchWorkers.toLowerCase())
-  )
+            await deleteWorker(id, token);
 
-  // Eliminar
-  const handleDelete = async (id: string) => {
-    if (!token) return alert('No autorizado')
-    if (!confirm('¿Seguro que deseas eliminar este trabajador?')) return
+            // Actualizar UI
+            setWorkers(prev => prev.filter(w => w.id !== id));
 
-    try {
-      await deleteWorker(id, token)
-      setWorkers(prev => (prev ? prev.filter(w => w.id !== id) : prev))
-      setModalWorker(null)
-      alert('Trabajador eliminado correctamente')
-    } catch (e: any) {
-      alert(e?.message || 'No se pudo eliminar el trabajador')
-    }
-  }
+            // Éxito
+            await Swal.fire({
+                icon: 'success',
+                title: 'Eliminado',
+                text: 'El trabajador fue eliminado correctamente.',
+                timer: 1500,
+                showConfirmButton: false
+            });
 
-  // edit initialization and save
-  useEffect(() => {
-    if (!modalWorker) {
-      setEditMode(false)
-      setEditName('')
-      setEditSecondName(null)
-      setEditLastname('')
-      setEditSecondLastname(null)
-      setEditRole('')
-      setEditEmail(null)
-      setEditPhoneNumber(null)
-      setEditFechaNacimiento(null)
-      setEditStatus(null)
-      setEditPhotoUrl(null)
-      setEditAssignedVehicleId(null)
-      return
-    }
-    setEditMode(false)
-    setEditName(modalWorker.name || '')
-    setEditSecondName((modalWorker as any).secondName ?? null)
-    setEditLastname((modalWorker as any).lastname || '')
-    setEditSecondLastname((modalWorker as any).secondLastname ?? null)
-    setEditRole(modalWorker.role || '')
-    setEditEmail(modalWorker.email ?? null)
-    setEditPhoneNumber((modalWorker as any).phoneNumber ?? null)
-    setEditFechaNacimiento((modalWorker as any).fechaNacimiento ?? null)
-    setEditStatus((modalWorker as any).status ?? null)
-    setEditPhotoUrl((modalWorker as any).photoUrl ?? null)
-    setEditAssignedVehicleId(modalWorker.assignedVehicleId ?? null)
-  }, [modalWorker])
+        } catch (e: any) {
+            console.error('deleteWorker error', e);
 
-  const handleSave = async () => {
-    if (!modalWorker) return
-    if (!token) return alert('No autorizado')
-    try {
-      const payload = {
-        name: editName,
-        secondName: editSecondName,
-        lastname: editLastname,
-        secondLastname: editSecondLastname,
-        role: editRole,
-        email: editEmail,
-        phoneNumber: editPhoneNumber,
-        fechaNacimiento: editFechaNacimiento,
-        status: editStatus,
-        photoUrl: editPhotoUrl,
-        assignedVehicleId: editAssignedVehicleId,
-      }
-      const updated = await updateWorker(modalWorker.id, payload, token)
-      const updatedItem = (updated && (updated.data || updated.worker || updated)) || { ...modalWorker, ...payload }
-      setWorkers(prev => (prev ? prev.map(w => (w.id === modalWorker.id ? { ...w, ...updatedItem } : w)) : prev))
-      setModalWorker({ ...(modalWorker || {}), ...updatedItem } as Employee)
-      setEditMode(false)
-      alert('Trabajador actualizado')
-    } catch (e: any) {
-      alert(e?.message || 'No se pudo actualizar el trabajador')
-    }
-  }
+            const message = e?.message || 'Error eliminando trabajador';
 
-  if (isLoading) return <div>Cargando sesión...</div>
+            setError(message);
 
+<<<<<<< HEAD
   return (
     <div className="page">
       <div className="panel">
@@ -187,188 +128,605 @@ export default function EmployeesScreen() {
         centerSlot={<span style={{ fontWeight: 700, fontSize: '1.05rem' }}>Trabajadores</span>}
         centered={true}
       />
+=======
+            // Error visual
+            await Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: message
+            });
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-        <h3>
-          {workers === null ? 'Trabajadores (cargando...)'
-            : `Trabajadores (mostrados: ${filteredWorkers.length} / total: ${workers.length})`}
-        </h3>
+        } finally {
+            setDeletingId(null);
+            setDropdownOpen(null);
+        }
+    };
+>>>>>>> 107fa45616f1412b7f53602e8dd0fd9ad9a9f790
 
-        <input
-          placeholder="Buscar trabajadores..."
-          value={searchWorkers}
-          onChange={e => setSearchWorkers(e.target.value)}
-          style={{ padding: '6px 8px' }}
-        />
+    const handleCreate = async () => {
+        // simple validation
+        setCreateError(null)
+        if (!newName || !newLastname) { setCreateError('Nombre y apellido son obligatorios'); return }
+        if (!token) { setCreateError('No autorizado'); return }
+        setCreating(true)
+        setCreateError(null)
+        setError(null)
 
-        <button className="card-button" onClick={() => {
-          // abrir modal en modo crear
-          setCreating(true)
-          setModalWorker(null)
-          setEditMode(true)
-          // inicializar campos vacíos
-          setEditName('')
-          setEditSecondName(null)
-          setEditLastname('')
-          setEditSecondLastname(null)
-          setEditRole('')
-          setEditEmail(null)
-          setEditPhoneNumber(null)
-          setEditFechaNacimiento(null)
-          setEditStatus(null)
-          setEditPhotoUrl(null)
-          setEditAssignedVehicleId(null)
-        }}>Agregar trabajador</button>
-      </div>
+        try {
+            const payload: any = {}
+            if (newName) payload.name = newName
+            if (newSecondName) payload.secondName = newSecondName
+            if (newLastname) payload.lastname = newLastname
+            if (newSecondLastname) payload.secondLastname = newSecondLastname
+            if (newRole && newRole !== '') payload.role = newRole === 'NULL' ? null : newRole
+            if (newEmail) payload.email = newEmail
+            if (newPhone) payload.phoneNumber = newPhone
+            if (newFechaNacimiento) payload.fechaNacimiento = newFechaNacimiento
+            if (newPassword) {
+                const pwdError = validatePassword(newPassword);
+                if (pwdError) {
+                    setCreateError('La contraseña debe tener al menos 8 caracteres, incluyendo mayúsculas, minúsculas, números y símbolos.');
+                    setCreating(false);
+                    return;
+                }
+                payload.password = newPassword;
+            }
+            if (newStatus) payload.status = newStatus
+            if (newPhotoFile && newPhotoPreview) {
+                payload.photoUrl = newPhotoPreview;
+            }
 
-      {loading && <p>Cargando trabajadores...</p>}
-      {error && <p className="form-error">{error}</p>}
+            const res = await createWorker(payload, token)
 
-      <div className="card-grid" style={{ marginTop: 12 }}>
-        {filteredWorkers.map(w => (
-          <div key={w.id} className="worker-card">
-            <div className="card-role">{renderVal(w.role)}</div>
-            <div className="card-name">{renderVal(w.name)}</div>
-            <div className="card-assignment">Asignación: {renderVal(w.assignedVehicleId) || 'Ninguno'}</div>
-            <div className="card-id">{renderVal(w.id)}</div>
+            // try extract created worker
+            const created = (res && (res.worker || res.data || res || null))
+            const newWorker = (created && typeof created === 'object') ? created : payload
+            // normalize id
+            const id = newWorker.id || newWorker._id || String(Date.now())
+            setWorkers(prev => [{ id, role: newWorker.role || payload.role || '', email: newWorker.email || payload.email || '', name: newWorker.name || payload.name || '', secondName: newWorker.secondName ?? null, lastname: newWorker.lastname || payload.lastname || '', secondLastname: newWorker.secondLastname ?? null, phoneNumber: newWorker.phoneNumber ?? payload.phoneNumber ?? null, fechaNacimiento: newWorker.fechaNacimiento ?? payload.fechaNacimiento ?? null, passwordHash: newWorker.passwordHash ?? payload.passwordHash ?? null, status: newWorker.status ?? payload.status ?? 'active', photoUrl: newWorker.photoUrl ?? payload.photoUrl ?? null }, ...prev])
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <button className="card-button" onClick={() => setModalWorker(w)}>Ver más</button>
-              <button className="danger-btn" onClick={() => handleDelete(w.id)}>Eliminar</button>
-            </div>
-          </div>
-        ))}
+            // Mostrar éxito similar a tu ejemplo
+            await Swal.fire({
+                icon: 'success',
+                title: 'Trabajador creado',
+                text: 'El trabajador se registró correctamente.',
+                timer: 1800,
+                showConfirmButton: false,
+            });
 
-        {filteredWorkers.length === 0 && !loading && (
-          <p className="muted">No se encontraron trabajadores.</p>
-        )}
-      </div>
+            // Cerrar modal
+            setCreateOpen(false)
 
-      {/* Modal */}
-      {(modalWorker || creating) && (
-        <ModalErrorBoundary onClose={() => { setModalWorker(null); setCreating(false); }}>
-          <div className="modal-overlay" onClick={() => { setModalWorker(null); setCreating(false); }}>
-            <div className="modal-content" onClick={e => e.stopPropagation()}>
-              {(!editMode && !creating) ? (
-              <>
-                {typeof (modalWorker as any).photoUrl === 'string' && (modalWorker as any).photoUrl.trim() !== '' && (
-                  <div style={{ textAlign: 'center', marginBottom: 8 }}>
-                    <img src={(modalWorker as any).photoUrl} alt={String((modalWorker as any).name || '')} style={{ maxWidth: 160, borderRadius: 8 }} />
-                  </div>
-                )}
-                <h4>{renderVal([modalWorker!.name, (modalWorker as any)!.secondName, (modalWorker as any)!.lastname, (modalWorker as any)!.secondLastname].filter(Boolean).join(' '))}</h4>
-                <p><strong>Rol:</strong> {renderVal(modalWorker!.role)}</p>
-                <p><strong>Email:</strong> {renderVal(modalWorker!.email)}</p>
-                <p><strong>Teléfono:</strong> {renderVal((modalWorker as any)!.phoneNumber)}</p>
-                <p><strong>Fecha de nacimiento:</strong> {((modalWorker as any)!.fechaNacimiento) ? (() => { try { return new Date((modalWorker as any)!.fechaNacimiento).toLocaleDateString() } catch { return renderVal((modalWorker as any)!.fechaNacimiento) } })() : '—'}</p>
-                <p><strong>Estado:</strong> {renderVal((modalWorker as any)!.status)}</p>
-                <p><strong>Asignación:</strong> {renderVal(modalWorker!.assignedVehicleId) || 'Ninguno'}</p>
-                <p><strong>ID:</strong> {renderVal(modalWorker!.id)}</p>
-                <p className="muted"><strong>Creado:</strong> {renderVal(modalWorker!.createdAt)}</p>
+            // Refrescar lista desde servidor (opcional pero más fiable)
+            try {
+                const updated = await getWorkers(token)
+                setWorkers(updated)
+            } catch (_) {
+                // si falla la recarga, mantener la inserción local ya hecha
+            }
 
-                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                  <button className="card-button" onClick={() => setEditMode(true)}>Actualizar</button>
-                  <button className="danger-btn" onClick={() => handleDelete(modalWorker!.id)}>Eliminar</button>
-                  <button className="close-btn" onClick={() => { setModalWorker(null); setCreating(false); }}>Cerrar</button>
+            // reset form
+            setNewName(''); setNewSecondName(null); setNewLastname(''); setNewSecondLastname(null); setNewRole(''); setNewEmail(null); setNewPhone(null); setNewFechaNacimiento(null); setNewPassword(null); setNewStatus('active'); setNewPhotoFile(null); setNewPhotoPreview(null);
+
+        } catch (e: any) {
+            console.error('createWorker error', e)
+            let userMessage = e?.message || 'Trabajador no creado'
+            try {
+                const body = e?.body ?? e?.response ?? null
+                if (body) {
+                    if (Array.isArray(body.details) && body.details.length > 0) {
+                        const lines = body.details.map((d: any) => {
+                            if (!d) return String(d)
+                            if (typeof d === 'string') return d
+                            if (d.message) return d.message
+                            if (d.path && d.message) return `${d.path}: ${d.message}`
+                            return JSON.stringify(d)
+                        })
+                        userMessage = `${body.error || body.message || 'Error de validación'}: ${lines.join('; ')}`
+                    } else if (body.error || body.message) {
+                        userMessage = body.error || body.message
+                    }
+                }
+            } catch (_parseErr) {
+                /* ignore parse error */
+            }
+
+            // Mostrar alerta de error (coincide con tu ejemplo)
+            await Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: userMessage,
+            });
+
+            setCreateError(userMessage)
+        } finally {
+            setCreating(false)
+        }
+    }
+
+    const handleUpdate = async (id: Employee['id'] | null) => {
+        if (!id) return;
+
+        setEditError(null);
+        setEditCreating(true);
+
+        try {
+            const payload: any = {}
+            if (editPassword) {
+                const pwdErr = validatePassword(editPassword)
+                if (pwdErr) {
+                    setEditError('La contraseña no cumple los requisitos: ' + pwdErr)
+                    setEditCreating(false)
+                    return
+                }
+            }
+
+            payload.name = editName
+            payload.secondName = editSecondName
+            payload.lastname = editLastname
+            payload.secondLastname = editSecondLastname
+            payload.role = editRole === 'NULL' ? null : editRole
+            payload.email = editEmail
+            payload.phoneNumber = editPhone
+            payload.fechaNacimiento = editFechaNacimiento
+            payload.status = editStatus
+            if (editPhotoFile && editPhotoPreview) payload.photoUrl = editPhotoPreview
+            else if (editPhotoPreview === null && editPhotoFile === null) payload.photoUrl = editPhotoPreview
+            if (editPassword) payload.password = editPassword
+
+            await updateWorker(id, payload, token)
+
+            // Éxito
+            await Swal.fire({
+                icon: 'success',
+                title: 'Trabajador actualizado',
+                text: 'La información fue guardada correctamente.',
+                timer: 1800,
+                showConfirmButton: false,
+            })
+
+            // Cerrar modal y refrescar lista
+            setEditOpen(false)
+            try {
+                const updated = await getWorkers(token)
+                setWorkers(updated)
+            } catch (_) {
+                // si falla la recarga, confiar en la actualización local previa
+            }
+
+        } catch (e: any) {
+            console.error('updateWorker error', e)
+
+            let message = e?.message || 'Error al actualizar'
+
+            await Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: message,
+            })
+
+            setEditError(message)
+
+        } finally {
+            setEditCreating(false)
+        }
+    }
+
+
+    useEffect(() => {
+        let cancelled = false
+
+        const load = async () => {
+            setLoading(true)
+            setError(null)
+            try {
+                const arr = await getWorkers(token)
+                if (!cancelled) setWorkers(arr)
+            } catch (e: any) {
+                if (!cancelled) setError(e.message || "Error al cargar trabajadores")
+            } finally {
+                if (!cancelled) setLoading(false)
+            }
+        }
+
+        load()
+        return () => { cancelled = true }
+    }, [token])
+
+    function validatePassword(pwd: string): string | null {
+        if (pwd.length < 8) return "La contraseña debe tener al menos 8 caracteres";
+        if (!/[A-Z]/.test(pwd)) return "La contraseña debe contener al menos una letra mayúscula";
+        if (!/[a-z]/.test(pwd)) return "La contraseña debe contener al menos una letra minúscula";
+        if (!/[0-9]/.test(pwd)) return "La contraseña debe contener al menos un número";
+        if (!/[!*()\-_=+[\]|;:,./]/.test(pwd)) return "La contraseña debe contener al menos un símbolo";
+        return null;
+    }
+
+    const validatePasswordLive = (value: string) => {
+        const error: string[] = [];
+        if (value.length < 8) error.push("La contraseña debe tener al menos 8 caracteres");
+        if (!/[A-Z]/.test(value)) error.push("La contraseña debe contener al menos una letra mayúscula");
+        if (!/[a-z]/.test(value)) error.push("La contraseña debe contener al menos una letra minúscula");
+        if (!/[0-9]/.test(value)) error.push("La contraseña debe contener al menos un número");
+        if (!/[!*()\-_=+[\]|;:,./]/.test(value)) error.push("La contraseña debe contener al menos un símbolo");
+
+        setPasswordErrorList(error);
+    }
+
+
+
+    return (
+        <div className="employees-page">
+            <Header
+                centerSlot={<div style={{ fontWeight: 700 }}>Trabajadores</div>}
+                rightSlot={<button className="button-agregar-employees" onClick={() => setCreateOpen(true)}>+ Agregar</button>}
+            />
+
+            {/* Modal de creación */}
+            {createOpen && (
+                <div className="modal-overlay" onClick={() => setCreateOpen(false)}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()}>
+                        <h3>Agregar trabajador</h3>
+                        <div className="form-grid-3">
+                            <label>
+                                Nombre
+                                <input value={newName} onChange={e => setNewName(e.target.value)} />
+                            </label>
+                            <label>
+                                Segundo nombre
+                                <input value={newSecondName ?? ''} onChange={e => setNewSecondName(e.target.value || null)} />
+                            </label>
+                            <label>
+                                Apellido
+                                <input value={newLastname} onChange={e => setNewLastname(e.target.value)} />
+                            </label>
+                            <label>
+                                Segundo apellido
+                                <input value={newSecondLastname ?? ''} onChange={e => setNewSecondLastname(e.target.value || null)} />
+                            </label>
+                            <label>
+                                Rol
+                                <select value={newRole} onChange={e => setNewRole(e.target.value)}>
+                                    <option value="">Seleccionar</option>
+                                    <option value="admin">admin</option>
+                                    <option value="supervisor">supervisor</option>
+                                    <option value="worker">worker</option>
+                                </select>
+                            </label>
+                            <label>
+                                Email
+                                <input value={newEmail ?? ''} onChange={e => setNewEmail(e.target.value || null)} />
+                            </label>
+                            <label>
+                                Teléfono
+                                <input maxLength={10} value={newPhone ?? ''} onChange={e => { const value = e.target.value.replace(/\D/g, ''); setNewPhone(value || null) }} />
+                            </label>
+                            <label>
+                                Fecha de nacimiento
+                                <input type="date" value={newFechaNacimiento ? newFechaNacimiento.split('T')[0] : ''} onChange={e => setNewFechaNacimiento(e.target.value || null)} />
+                            </label>
+
+                            <label>
+                                Contraseña
+                                <div style={{ position: 'relative' }}>
+                                    <input
+                                        type={showPassword ? "text" : "password"}
+                                        value={newPassword ?? ''}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            setNewPassword(val || null);
+                                            validatePasswordLive(val);
+                                        }}
+                                        style={{ paddingRight: 35 }}
+                                    />
+
+                                    {/* OJITO */}
+                                    <span
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        style={{
+                                            position: 'absolute',
+                                            right: 10,
+                                            top: '50%',
+                                            transform: 'translateY(-50%)',
+                                            cursor: 'pointer',
+                                            opacity: 0.85,
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}
+                                        role="button"
+                                        aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                                    >
+                                        {showPassword ? (
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                                                <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                            </svg>
+                                        ) : (
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                                                <path d="M17.94 17.94A10.94 10.94 0 0112 19c-7 0-11-7-11-7a20.3 20.3 0 014.12-5.05" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                <path d="M1 1l22 22" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                <path d="M9.88 9.88A3 3 0 0012 15c1.03 0 1.96-.5 2.56-1.28" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                <path d="M14.12 14.12A3 3 0 019.88 9.88" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                            </svg>
+                                        )}
+                                    </span>
+                                </div>
+                            </label>
+
+                            {/* ERRORES DE CONTRASEÑA EN TIEMPO REAL */}
+                            {passwordErrorList.length > 0 && (
+                                <ul style={{ color: 'red', fontSize: 13, marginTop: 4, paddingLeft: 18 }}>
+                                    {passwordErrorList.map((e, i) => (
+                                        <li key={i}>{e}</li>
+                                    ))}
+                                </ul>
+                            )}
+
+                            <label>
+                                Estado
+                                <input value={newStatus ?? ''} onChange={e => setNewStatus(e.target.value || null)} />
+                            </label>
+                            <label>
+                                Foto
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0] || null;
+                                        setNewPhotoFile(file);
+
+                                        if (file) {
+                                            const reader = new FileReader();
+                                            reader.onloadend = () => {
+                                                setNewPhotoPreview(reader.result as string);
+                                            };
+                                            reader.readAsDataURL(file);
+                                        } else {
+                                            setNewPhotoPreview(null);
+                                        }
+                                    }}
+                                />
+                            </label>
+
+                            {newPhotoPreview && (
+                                <img
+                                    src={newPhotoPreview}
+                                    alt="Previsualización"
+                                    style={{ width: 100, height: 100, borderRadius: 10, marginTop: 8 }}
+                                />
+                            )}
+
+                        </div>
+                        {createError && <div style={{ color: '#b91c1c', marginTop: 8 }}>{createError}</div>}
+
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+                            <button className="small" onClick={() => setCreateOpen(false)} disabled={creating}>Cancelar</button>
+
+                            <button className="small" onClick={handleCreate} disabled={creating}>{creating ? 'Creando…' : 'Crear'}</button>
+                        </div>
+                    </div>
                 </div>
-              </>
-            ) : (
-              <>
-                <h4>{creating ? 'Agregar trabajador' : 'Editar trabajador'}</h4>
-                <div className="modal-form">
-                  <label>
-                    Nombre
-                    <input value={editName} onChange={e => setEditName(e.target.value)} />
-                  </label>
-                  <label>
-                    Segundo nombre
-                    <input value={editSecondName ?? ''} onChange={e => setEditSecondName(e.target.value || null)} />
-                  </label>
-                  <label>
-                    Apellido
-                    <input value={editLastname} onChange={e => setEditLastname(e.target.value)} />
-                  </label>
-                  <label>
-                    Segundo apellido
-                    <input value={editSecondLastname ?? ''} onChange={e => setEditSecondLastname(e.target.value || null)} />
-                  </label>
-                  <label>
-                    Rol
-                    <input value={editRole} onChange={e => setEditRole(e.target.value)} />
-                  </label>
-                  <label>
-                    Email
-                    <input value={editEmail ?? ''} onChange={e => setEditEmail(e.target.value || null)} />
-                  </label>
-                  <label>
-                    Teléfono
-                    <input value={editPhoneNumber ?? ''} onChange={e => setEditPhoneNumber(e.target.value || null)} />
-                  </label>
-                  <label>
-                    Fecha de nacimiento
-                    <input type="date" value={editFechaNacimiento ? editFechaNacimiento.split('T')[0] : ''} onChange={e => setEditFechaNacimiento(e.target.value || null)} />
-                  </label>
-                  <label>
-                    Estado
-                    <input value={editStatus ?? ''} onChange={e => setEditStatus(e.target.value || null)} />
-                  </label>
-                  <label>
-                    Photo URL
-                    <input value={editPhotoUrl ?? ''} onChange={e => setEditPhotoUrl(e.target.value || null)} />
-                  </label>
-                  <label>
-                    Asignación (vehicle id)
-                    <input value={editAssignedVehicleId ?? ''} onChange={e => setEditAssignedVehicleId(e.target.value || null)} />
-                  </label>
-                </div>
-
-                <div className="modal-actions">
-                  {creating ? (
-                    <>
-                      <button className="card-button" onClick={async () => {
-                        if (!token) return alert('No autorizado')
-                        try {
-                          const payload = {
-                            name: editName,
-                            secondName: editSecondName,
-                            lastname: editLastname,
-                            secondLastname: editSecondLastname,
-                            role: editRole,
-                            email: editEmail,
-                            phoneNumber: editPhoneNumber,
-                            fechaNacimiento: editFechaNacimiento,
-                            status: editStatus,
-                            photoUrl: editPhotoUrl,
-                            assignedVehicleId: editAssignedVehicleId,
-                          }
-                          const created = await createWorker(payload as any, token)
-                          const createdItem = (created && (created.data || created.worker || created)) || { ...payload, id: (created && created.id) || '' }
-                          setWorkers(prev => (prev ? [createdItem as Employee, ...prev] : [createdItem as Employee]))
-                          setModalWorker(createdItem as Employee)
-                          setCreating(false)
-                          setEditMode(false)
-                          alert('Trabajador creado')
-                        } catch (e: any) {
-                          alert(e?.message || 'No se pudo crear el trabajador')
-                        }
-                      }}>Crear</button>
-                      <button className="close-btn" onClick={() => { setCreating(false); setModalWorker(null); setEditMode(false); }}>Cancelar</button>
-                    </>
-                  ) : (
-                    <>
-                      <button className="card-button" onClick={() => handleSave()}>Guardar</button>
-                      <button className="close-btn" onClick={() => setEditMode(false)}>Cancelar</button>
-                      <button className="danger-btn" onClick={() => modalWorker && handleDelete(modalWorker.id)}>Eliminar</button>
-                    </>
-                  )}
-                </div>
-              </>
             )}
-          </div>
+
+            {/* Modal de edición */}
+            {editOpen && (
+                <div className="modal-overlay" onClick={() => setEditOpen(false)}>
+
+                    <div className="modal-content" onClick={e => e.stopPropagation()}>
+                        <h3>Editar trabajador</h3>
+                        <div className="form-grid-3">
+                            <label>
+                                Nombre
+                                <input value={editName} onChange={e => setEditName(e.target.value)} />
+                            </label>
+                            <label>
+                                Segundo nombre
+                                <input value={editSecondName ?? ''} onChange={e => setEditSecondName(e.target.value || null)} />
+                            </label>
+                            <label>
+                                Apellido
+                                <input value={editLastname} onChange={e => setEditLastname(e.target.value)} />
+                            </label>
+                            <label>
+                                Segundo apellido
+                                <input value={editSecondLastname ?? ''} onChange={e => setEditSecondLastname(e.target.value || null)} />
+                            </label>
+                            <label>
+                                Rol
+                                <select value={editRole ?? ''} onChange={e => setEditRole(e.target.value || null)}>
+                                    <option value="">Seleccionar</option>
+                                    <option value="admin">admin</option>
+                                    <option value="supervisor">supervisor</option>
+                                    <option value="worker">worker</option>
+                                </select>
+                            </label>
+                            <label>
+                                Email
+                                <input value={editEmail ?? ''} onChange={e => setEditEmail(e.target.value || null)} />
+                            </label>
+                            <label>
+                                Teléfono
+                                <input maxLength={10} value={editPhone ?? ''} onChange={e => { const value = e.target.value.replace(/\D/g, ''); setEditPhone(value || null) }} />
+                            </label>
+                            <label>
+                                Fecha de nacimiento
+                                <input type="date" value={editFechaNacimiento ? editFechaNacimiento.split('T')[0] : ''} onChange={e => setEditFechaNacimiento(e.target.value || null)} />
+                            </label>
+                            <label>
+                                Estado
+                                <select value={editStatus ?? ''} onChange={e => setEditStatus(e.target.value || null)}>
+                                    <option value="active">active</option>
+                                    <option value="inactive">inactive</option>
+                                    <option value="suspended">suspended</option>
+                                </select>
+                            </label>
+
+                            <label>
+                                Contraseña
+                                <div style={{ position: 'relative' }}>
+                                    <input
+                                        type={editShowPassword ? 'text' : 'password'}
+                                        value={editPassword ?? ''}
+                                        onChange={e => {
+                                            const val = e.target.value
+                                            setEditPassword(val || null)
+                                            const errs: string[] = []
+                                            if (val.length < 8) errs.push('La contraseña debe tener al menos 8 caracteres')
+                                            if (!/[A-Z]/.test(val)) errs.push('Debe contener al menos una letra mayúscula')
+                                            if (!/[a-z]/.test(val)) errs.push('Debe contener al menos una letra minúscula')
+                                            if (!/[0-9]/.test(val)) errs.push('Debe contener al menos un número')
+                                            if (!/[!*()\-_=+\[\]|;:,./]/.test(val)) errs.push('Debe contener al menos un símbolo')
+                                            setEditPasswordErrorList(errs)
+                                        }}
+                                        style={{ paddingRight: 35 }}
+                                    />
+                                    <span onClick={() => setEditShowPassword(!editShowPassword)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', opacity: 0.85 }} role="button" aria-label={editShowPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}>
+                                        {editShowPassword ? (
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                                                <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                            </svg>
+                                        ) : (
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                                                <path d="M17.94 17.94A10.94 10.94 0 0112 19c-7 0-11-7-11-7a20.3 20.3 0 014.12-5.05" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                <path d="M1 1l22 22" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                <path d="M9.88 9.88A3 3 0 0012 15c1.03 0 1.96-.5 2.56-1.28" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                <path d="M14.12 14.12A3 3 0 019.88 9.88" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                            </svg>
+                                        )}
+                                    </span>
+                                </div>
+                                {editPasswordErrorList.length > 0 && (
+                                    <ul style={{ color: 'red', fontSize: 13, marginTop: 4, paddingLeft: 18 }}>
+                                        {editPasswordErrorList.map((e, i) => <li key={i}>{e}</li>)}
+                                    </ul>
+                                )}
+                            </label>
+
+                            <label>
+                                Foto
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0] || null;
+                                        setEditPhotoFile(file);
+
+                                        if (file) {
+                                            const reader = new FileReader();
+                                            reader.onloadend = () => {
+                                                setEditPhotoPreview(reader.result as string);
+                                            };
+                                            reader.readAsDataURL(file);
+                                        } else {
+                                            setEditPhotoPreview(null);
+                                        }
+                                    }}
+                                />
+                            </label>
+
+                            {editPhotoPreview && (
+                                <img
+                                    src={editPhotoPreview}
+                                    alt="Previsualización"
+                                    style={{ width: 100, height: 100, borderRadius: 10, marginTop: 8 }}
+                                />
+                            )}
+
+                        </div>
+                        {editError && <div style={{ color: '#b91c1c', marginTop: 8 }}>{editError}</div>}
+
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+                            <button className="small" onClick={() => setEditOpen(false)} disabled={editCreating}>Cancelar</button>
+                            <button className="small" onClick={() => handleUpdate(editId)} disabled={editCreating}>{editCreating ? 'Guardando…' : 'Guardar'}</button>
+                        </div>
+                    </div>
+
+                </div>
+            )}
+
+            {loading && <p>Cargando trabajadores…</p>}
+            {error && <p className="error">Error: {error}</p>}
+            {!loading && !error && workers.length === 0 && <p>No hay empleados registrados.</p>}
+
+            {!loading && !error && workers.length > 0 && (
+                <div className="employees-table-container">
+                    <table className="employees-table">
+                        <thead>
+                            <tr>
+                                <th>Foto</th>
+                                <th>Nombre</th>
+                                <th>Rol</th>
+                                <th>Correo</th>
+                                <th>Teléfono</th>
+                                <th>Estado</th>
+                                <th>Opciones</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            {workers.map(w => (
+                                <tr key={w.id}>
+                                    <td>
+                                        <div className="empleado-foto">
+                                            {w.photoUrl
+                                                ? <img src={w.photoUrl} loading="lazy" />
+                                                : <span>{w.name?.charAt(0) ?? "👤"}</span>}
+                                        </div>
+                                    </td>
+
+                                    <td>{`${w.name ?? ""} ${w.secondName ?? ""} ${w.lastname}`}</td>
+                                    <td>{w.role ?? "—"}</td>
+                                    <td>{w.email}</td>
+                                    <td>{w.phoneNumber ?? "—"}</td>
+
+                                    <td>
+                                        <span className={`status ${w.status}`}>
+                                            {w.status}
+                                        </span>
+                                    </td>
+
+                                    <td style={{ position: "relative", overflow: "visible" }}>
+                                        <button
+                                            className='btn-opciones-worker'
+                                            onClick={() => setDropdownOpen(dropdownOpen === w.id ? null : w.id)}
+                                        >...</button>
+
+                                        {dropdownOpen === w.id && (
+                                            <div className="dropdown-opciones-worker">
+
+                                                <button className='btn-put-worker' onClick={() => openEdit(w)}>
+                                                    <Pencil size={16} style={{ marginRight: 6 }} />
+                                                    Actualizar
+                                                </button>
+
+                                                
+                                                <button
+                                                    className="btn-delete-worker"
+                                                    onClick={() => handleDelete(w.id)}
+                                                    disabled={deletingId === w.id}
+                                                >
+                                                    {deletingId === w.id ? "Eliminando..." : <Trash2 size={16} style={{ marginRight: 6 }} />}
+                                                    Eliminar
+                                                </button>
+                                            </div>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
         </div>
+<<<<<<< HEAD
         </ModalErrorBoundary>
       )}
       </div>
     </div>
   )
+=======
+    )
+>>>>>>> 107fa45616f1412b7f53602e8dd0fd9ad9a9f790
 }
