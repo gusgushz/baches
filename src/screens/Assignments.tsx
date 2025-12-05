@@ -42,6 +42,8 @@ export default function AssignmentsScreen() {
   const [workerDetail, setWorkerDetail] = useState<any | null>(null)
   const [editModeWorker, setEditModeWorker] = useState(false)
   const [creatingWorker, setCreatingWorker] = useState(false)
+  const [editAssignmentMode, setEditAssignmentMode] = useState(false)
+  const [editAssignmentStatus, setEditAssignmentStatus] = useState<string>('')
   const [editName, setEditName] = useState('')
   const [editSecondName, setEditSecondName] = useState<string | null>(null)
   const [editLastname, setEditLastname] = useState('')
@@ -69,6 +71,8 @@ export default function AssignmentsScreen() {
   useEffect(() => {
     if (!workerDetail) {
       setEditModeWorker(false)
+      setEditAssignmentMode(false)
+      setEditAssignmentStatus('')
       setEditName('')
       setEditSecondName(null)
       setEditLastname('')
@@ -137,11 +141,18 @@ export default function AssignmentsScreen() {
           title: a.title || a.summary || a.description || '—',
           description: a.description || a.summary || '',
           status: a.status || 'pending',
+          progressStatus: a.progressStatus || a.progress || a.statusProgress || a.status || 'not_started',
+          workerId: a.workerId || assignedId,
+          vehicleId: a.vehicleId || (vehicle && (vehicle.id || vehicle._id)),
+          priority: a.priority || 'medium',
+          notes: a.notes || '',
+          assignedAt: a.assignedAt,
+          completedAt: a.completedAt,
           assignedTo: assigned ? (typeof assigned === 'string' ? assigned : { id: assigned.id || assigned._id || assignedId || undefined, name: assigned.name || assigned.nombre || undefined, lastname: assigned.lastname || assigned.lastName || assigned.apellido || undefined, email: assigned.email || undefined }) : undefined,
           vehicle: vehicle ? (typeof vehicle === 'string' ? { plate: vehicle } : { id: vehicle.id || vehicle._id || undefined, plate: vehicle.licensePlate || vehicle.plate || vehicle.plateNumber || undefined, model: vehicle.model || vehicle.brand || undefined }) : null,
           scheduledAt: a.scheduledAt || a.date || a.due || undefined,
           createdAt: a.createdAt || a.created || undefined,
-        })
+        } as any)
       })
       setItems(normalized)
       try { console.debug('[Assignments] loaded items', normalized.length) } catch(e){}
@@ -231,58 +242,87 @@ export default function AssignmentsScreen() {
       const original = items.find(a => a.id === id)
       if (!original) throw new Error("Asignación no encontrada en memoria")
 
-      // Reconstruir payload COMPLETO
+      // Valores válidos del backend
+      const validStatuses = ["not_started", "in_progress", "completed", "on_hold"]
+
+      // Reconstruimos TODO lo que requiere la DB
+      const workerIdFinal =
+        (payload as any).workerId ??
+        (payload as any).assignedTo?.id ??
+        (original as any).workerId
+
+      let vehicleIdFinal: string | undefined = undefined
+      // 1. Si el usuario cambió vehículo
+      if ((payload as any).vehicleId || (payload as any).vehicle?.id) {
+        vehicleIdFinal = (payload as any).vehicleId ?? (payload as any).vehicle?.id
+      }
+      // 2. Si no lo cambió y existe en el original
+      else if ((original as any).vehicleId || (original as any).vehicle?.id) {
+        vehicleIdFinal = (original as any).vehicleId ?? (original as any).vehicle?.id
+      }
+      // 3. Si no existe → NO lo mandamos (NO null)
+
+      const statusFromPayload = (payload as any).progressStatus
+      // si el status NO es uno de los válidos → NO lo cambiamos
+      const progressStatusFinal =
+        validStatuses.includes(statusFromPayload)
+          ? statusFromPayload
+          : ((original as any).progressStatus ??
+            (original as any).progress ??
+            (original as any).statusProgress ??
+            "not_started")
+
+      const priorityFinal =
+        (payload as any).priority ??
+        (original as any).priority ??
+        "medium"
+
+      const notesFinal =
+        typeof (payload as any).notes === "string"
+          ? (payload as any).notes
+          : typeof (original as any).notes === "string"
+            ? (original as any).notes
+            : ""
+
+      const completedAtFinal =
+        (payload as any).completedAt ?? (original as any).completedAt ?? null
+
       const fullPayload: any = {
-        // worker asignado
-        assignedWorkerId:
-          (payload.assignedTo as any)?.id ??
-          (original.assignedTo as any)?.id ??
-          original.assignedTo,
-
-        // vehículo asignado
-        vehicleId:
-          (payload.vehicle as any)?.id ??
-          (original.vehicle as any)?.id ??
-          null,
-
-        // status
-        status: payload.status ?? original.status,
-
-        // metadatos importantes
-        title: payload.title ?? original.title,
-        description: payload.description ?? original.description,
-        scheduledAt: payload.scheduledAt ?? original.scheduledAt,
-        createdAt: original.createdAt,
-        updatedAt: new Date().toISOString()
+        workerId: workerIdFinal,
+        ...(vehicleIdFinal ? { vehicleId: vehicleIdFinal } : {}), // ⭐ Solo incluir si existe
+        progressStatus: progressStatusFinal,
+        priority: priorityFinal,
+        notes: notesFinal,
+        completedAt: completedAtFinal,
       }
 
-      console.log("[Assignments] ENVIANDO FULL PAYLOAD:", fullPayload)
+      console.log("[Assignments] Enviando FULL PAYLOAD:", fullPayload)
 
       const headers: Record<string,string> = {
         "Content-Type": "application/json",
         Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}) as Record<string,string>
       }
-      if (token) headers.Authorization = `Bearer ${token}`
 
       const res = await fetch(buildApiUrl(`/assignments/${id}`), {
         method: "PUT",
         headers,
-        body: JSON.stringify(fullPayload),
+        body: JSON.stringify(fullPayload)
       })
 
       if (!res.ok) {
         let body = ""
         try { body = JSON.stringify(await res.json()) }
-        catch { body = await res.text().catch(()=> "") }
+        catch { body = await res.text().catch(() => "") }
         throw new Error(`Actualizar falló: ${res.status} ${body}`)
       }
 
       await load()
-      setSelected(prev => prev && prev.id === id ? { ...prev, ...payload } : prev)
+      setSelected(prev => (prev?.id === id ? { ...(prev as any), ...(payload as any) } : prev))
 
-    } catch (e: any) {
-      console.error(e)
-      setError(e?.message ?? "No se pudo actualizar")
+    } catch (error: any) {
+      console.error("handleUpdate", error)
+      setError(error?.message ?? "No se pudo actualizar")
     } finally {
       setSubmitting(false)
     }
@@ -388,6 +428,44 @@ export default function AssignmentsScreen() {
       })
       if (assignment && (assignment as any).vehicle) return (assignment as any).vehicle
     }
+    return null
+  }
+
+  // Encuentra el trabajador asignado a un vehículo (si existe)
+  const findAssignedWorkerForVehicle = (vehicle: any) => {
+    if (!vehicle) return null
+    const vid = vehicle.id || vehicle._id || vehicle.vehicleId || vehicle.licensePlate || vehicle.plate || vehicle.plateNumber
+
+    // If vehicle object already contains assigned worker info
+    if (vehicle.assignedWorker || vehicle.assignedTo || vehicle.worker) {
+      return vehicle.assignedWorker || vehicle.assignedTo || vehicle.worker
+    }
+
+    // If vehicle lists include assignedWorkerId
+    if (vehicle.assignedWorkerId) {
+      const found = (workersList || []).find((w:any) => String(w.id || w._id || w.email) === String(vehicle.assignedWorkerId))
+      if (found) return found
+    }
+
+    // Fallback: inspect current assignments to find a worker linked to this vehicle
+    if (items && items.length > 0) {
+      const assignment = items.find(a => {
+        const vinfo: any = (a as any).vehicle || null
+        if (!vinfo) return false
+        const vId = vinfo.id || vinfo._id || vinfo.vehicleId
+        if (vId && vid && String(vId) === String(vid)) return true
+        const vPlate = vinfo.licensePlate || vinfo.plate || vinfo.plateNumber
+        const plate = vehicle.licensePlate || vehicle.plate || vehicle.plateNumber
+        if (vPlate && plate && String(vPlate) === String(plate)) return true
+        return false
+      })
+      if (assignment) {
+        const asg: any = (assignment as any).assignedTo || null
+        if (!asg) return null
+        return typeof asg === 'string' ? { id: asg, name: asg } : asg
+      }
+    }
+
     return null
   }
 
@@ -621,28 +699,109 @@ export default function AssignmentsScreen() {
                 )}
                 {!loadingWorkerDetail && (
                   <>
-                    <h4>{[workerDetail.name, (workerDetail as any).secondName, (workerDetail as any).lastname, (workerDetail as any).secondLastname].filter(Boolean).join(' ')}</h4>
+                    <h4>{[workerDetail.name, (workerDetail as any).secondName, (workerDetail as any).lastname].filter(Boolean).join(' ') || (workerDetail.email || '—')}</h4>
                     <p><strong>Rol:</strong> {renderVal(workerDetail.role)}</p>
-                    <p><strong>Email:</strong> {renderVal(workerDetail.email)}</p>
-                    <p><strong>Teléfono:</strong> {renderVal((workerDetail as any).phoneNumber)}</p>
-                    <p><strong>Fecha de nacimiento:</strong> {((workerDetail as any).fechaNacimiento) ? (() => { try { return new Date((workerDetail as any).fechaNacimiento).toLocaleDateString() } catch { return renderVal((workerDetail as any).fechaNacimiento) } })() : '—'}</p>
-                    <p><strong>Estado:</strong> {renderVal((workerDetail as any).status)}</p>
-                    <p><strong>Asignación:</strong> {renderVal(workerDetail.assignedVehicleId) || '—'}</p>
-                    <p><strong>ID:</strong> {renderVal(workerDetail.id)}</p>
-                    <p className="muted"><strong>Creado:</strong> {renderVal(workerDetail.createdAt)}</p>
+
+                    {!editAssignmentMode && (() => {
+                      const wid = (workerDetail as any).id || (workerDetail as any)._id || (workerDetail as any).email
+                      const assignment = items.find(a => {
+                        const asg: any = (a as any).assignedTo || null
+                        const awId = asg && (typeof asg === 'string' ? asg : (asg.id || asg._id || asg.email))
+                        if (!awId) return false
+                        return String(awId) === String(wid)
+                      })
+                      const assignStatus = assignment ? ((assignment as any).progressStatus || (assignment as any).status || '—') : '—'
+                      const assignVehicle = assignment && (assignment as any).vehicle ? (((assignment as any).vehicle.licensePlate || (assignment as any).vehicle.plate || (assignment as any).vehicle.plateNumber) || '—') : 'Sin asignación'
+                      const assignId = assignment ? (assignment as any).id || (assignment as any)._id || '—' : '—'
+                      return (
+                        <div>
+                          <p><strong>Estado de la asignación:</strong> {assignStatus}</p>
+                          <p><strong>Asignación:</strong> {assignVehicle} {assignId ? (<span style={{ color: '#666', fontSize: 12 }}> (ID: {assignId})</span>) : null}</p>
+                          <p><strong>ID del empleado:</strong> {renderVal(wid)}</p>
+                        </div>
+                      )
+                    })()}
+
+                    {editAssignmentMode && (() => {
+                      const wid = (workerDetail as any).id || (workerDetail as any)._id || (workerDetail as any).email
+                      const assignment = items.find(a => {
+                        const asg: any = (a as any).assignedTo || null
+                        const awId = asg && (typeof asg === 'string' ? asg : (asg.id || asg._id || asg.email))
+                        if (!awId) return false
+                        return String(awId) === String(wid)
+                      })
+                      const assignVehicle = assignment && (assignment as any).vehicle ? (((assignment as any).vehicle.licensePlate || (assignment as any).vehicle.plate || (assignment as any).vehicle.plateNumber) || '—') : 'Sin asignación'
+                      const assignId = assignment ? (assignment as any).id || (assignment as any)._id || '—' : '—'
+                      return (
+                        <div>
+                          <p><strong>Asignación:</strong> {assignVehicle} {assignId ? (<span style={{ color: '#666', fontSize: 12 }}> (ID: {assignId})</span>) : null}</p>
+                          <label style={{ display: 'block', marginTop: 8 }}>
+                            <strong>Nuevo estado:</strong>
+                            <select
+                              value={editAssignmentStatus}
+                              onChange={e => setEditAssignmentStatus(e.target.value)}
+                              style={{ width: '100%', padding: 6, marginTop: 4 }}
+                            >
+                              <option value="">Selecciona un estado</option>
+                              <option value="not_started">No iniciado</option>
+                              <option value="in_progress">En progreso</option>
+                              <option value="completed">Completada</option>
+                              <option value="on_hold">En pausa</option>
+                            </select>
+                          </label>
+                          <p><strong>ID del empleado:</strong> {renderVal(wid)}</p>
+                        </div>
+                      )
+                    })()}
 
                     <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                      <button className="card-button" onClick={() => setEditModeWorker(true)}>Actualizar</button>
-                      <button className="danger-btn" onClick={async () => {
-                        if (!confirm('¿Eliminar este trabajador?')) return
-                        try {
-                          if (!token) return alert('No autorizado')
-                          await deleteWorker(workerDetail.id, token)
-                          alert('Trabajador eliminado')
-                          setWorkerDetail(null)
-                        } catch (e: any) { alert(e?.message || 'Error al eliminar') }
-                      }}>Eliminar</button>
-                      <button className="close-btn" onClick={() => { setWorkerDetail(null); setEditModeWorker(false); setCreatingWorker(false) }}>Cerrar</button>
+                      {!editAssignmentMode ? (
+                        <>
+                          <button className="card-button" onClick={() => {
+                            const wid = (workerDetail as any).id || (workerDetail as any)._id || (workerDetail as any).email
+                            const assignment = items.find(a => {
+                              const asg: any = (a as any).assignedTo || null
+                              const awId = asg && (typeof asg === 'string' ? asg : (asg.id || asg._id || asg.email))
+                              if (!awId) return false
+                              return String(awId) === String(wid)
+                            })
+                            if (assignment) {
+                              setEditAssignmentStatus((assignment as any).progressStatus || (assignment as any).status || '')
+                              setEditAssignmentMode(true)
+                            } else {
+                              alert('No hay asignación para este trabajador')
+                            }
+                          }}>Actualizar</button>
+                          <button className="close-btn" onClick={() => { setWorkerDetail(null); setEditModeWorker(false); setCreatingWorker(false) }}>Cerrar</button>
+                        </>
+                      ) : (
+                        <>
+                          <button className="card-button" onClick={async () => {
+                            const wid = (workerDetail as any).id || (workerDetail as any)._id || (workerDetail as any).email
+                            const assignment = items.find(a => {
+                              const asg: any = (a as any).assignedTo || null
+                              const awId = asg && (typeof asg === 'string' ? asg : (asg.id || asg._id || asg.email))
+                              if (!awId) return false
+                              return String(awId) === String(wid)
+                            })
+                            if (!assignment || !editAssignmentStatus) {
+                              alert('Debe seleccionar un estado válido')
+                              return
+                            }
+                            try {
+                              await handleUpdate((assignment as any).id, { progressStatus: editAssignmentStatus } as any)
+                              alert('Asignación actualizada correctamente')
+                              setEditAssignmentMode(false)
+                              await load()
+                            } catch (e: any) {
+                              alert(e?.message || 'Error al actualizar la asignación')
+                            }
+                          }} disabled={submitting || !editAssignmentStatus}>
+                            {submitting ? 'Guardando...' : 'Guardar'}
+                          </button>
+                          <button className="close-btn" onClick={() => setEditAssignmentMode(false)}>Cancelar</button>
+                        </>
+                      )}
                     </div>
                   </>
                 )}
@@ -802,12 +961,41 @@ export default function AssignmentsScreen() {
                       {createLoadingVehicles && <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>Cargando vehículos…</div>}
                       {!createLoadingVehicles && vehiclesList.length === 0 && <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>No hay vehículos disponibles.</div>}
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 8 }}>
-                        {vehiclesList.map((v:any) => (
-                          <div key={v.id || v._id || v.licensePlate} onClick={() => setSelectedVehicle(v)} style={{ padding: 8, border: selectedVehicle && (selectedVehicle.id === (v.id || v._id) || selectedVehicle.licensePlate === v.licensePlate) ? '2px solid #0b4ea2' : '1px solid #e6e9ee', borderRadius: 6, cursor: 'pointer' }}>
-                            <div style={{ fontWeight: 700 }}>{v.licensePlate || v.plate || v.plateNumber}</div>
-                            <div style={{ fontSize: 12, color: '#666' }}>{v.model || v.brand || ''}</div>
-                          </div>
-                        ))}
+                        {vehiclesList.map((v:any) => {
+                          const assignedWorker = findAssignedWorkerForVehicle(v)
+                          const isAssigned = !!assignedWorker
+                          const isSelected = selectedVehicle && (selectedVehicle.id === (v.id || v._id) || selectedVehicle.licensePlate === v.licensePlate)
+                          return (
+                            <div
+                              key={v.id || v._id || v.licensePlate}
+                              onClick={() => {
+                                if (isAssigned) {
+                                  const who = (assignedWorker && (assignedWorker.name || assignedWorker.email || assignedWorker.id)) || 'un trabajador'
+                                  alert(`No puedes seleccionar este vehículo. Está asignado a ${who}.`)
+                                  return
+                                }
+                                setSelectedVehicle(v)
+                              }}
+                              style={{
+                                padding: 8,
+                                border: isSelected ? '2px solid #0b4ea2' : '1px solid #e6e9ee',
+                                borderRadius: 6,
+                                cursor: isAssigned ? 'not-allowed' : 'pointer',
+                                opacity: isAssigned ? 0.6 : 1,
+                                position: 'relative'
+                              }}
+                              aria-disabled={isAssigned}
+                            >
+                              <div style={{ fontWeight: 700 }}>{v.licensePlate || v.plate || v.plateNumber}</div>
+                              <div style={{ fontSize: 12, color: '#666' }}>{v.model || v.brand || ''}</div>
+                              {isAssigned ? (
+                                <div style={{ marginTop: 6, fontSize: 12, color: '#0b4ea2' }}>Asignado a: {(assignedWorker && (assignedWorker.name || assignedWorker.email || assignedWorker.id)) || '—'}</div>
+                              ) : (
+                                <div style={{ marginTop: 6, fontSize: 12, color: '#999' }}>Disponible</div>
+                              )}
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   )}

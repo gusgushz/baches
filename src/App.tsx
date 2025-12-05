@@ -1,9 +1,8 @@
-import type { ReactNode } from "react";
 import "./App.css";
 import { SideBar } from "./components/SideBar";
 import { Outlet } from "react-router";
 
-function App({ children }: { children?: ReactNode }) {
+function App() {
   return (
     <main style={{ display: "flex", flex: 1 }}>
       <SideBar />
