@@ -1,8 +1,8 @@
-import type { ReactNode } from "react";
 import "./App.css";
 import { SideBar } from "./components/SideBar";
 import { Outlet } from "react-router";
 import { useSidebar } from "./contexts/SidebarContext";
+import type { ReactNode } from "react";
 
 function App({ children }: { children?: ReactNode }) {
   const { isOpen } = useSidebar();
