@@ -1,6 +1,6 @@
 import { useAuth } from "../contexts/AuthContext";
 import React from "react";
-import { useNavigate } from "react-router";
+import { Navigate } from "react-router";
 import { LoginScreen } from "../screens";
 
 interface PublicRouteProps {
@@ -9,11 +9,9 @@ interface PublicRouteProps {
 
 export const PublicRoute: React.FC<PublicRouteProps> = () => {
   const { user } = useAuth();
-  const navigate = useNavigate();
 
   if (user) {
-    navigate("/", { replace: true });
-    return null;
+    return <Navigate to="/" replace />;
   }
   // Si no hay usuario, renderiza los hijos (página pública)
 
