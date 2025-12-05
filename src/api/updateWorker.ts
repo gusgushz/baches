@@ -1,7 +1,7 @@
 const API_BASE = (import.meta as any).env?.VITE_BACKEND_URL
 const DEFAULT_URL = 'https://baches-yucatan.onrender.com/api/workers'
 
-export default async function updateWorker(id: string, payload: Record<string, any>, token?: string) {
+const updateWorker = async (id: string, payload: Record<string, any>, token?: string) => {
   if (!id) throw new Error('updateWorker: id is required')
   if (!token) throw new Error('No autorizado')
 
@@ -41,3 +41,4 @@ export default async function updateWorker(id: string, payload: Record<string, a
   console.debug('updateWorker response json:', json)
   return json || true
 }
+export default updateWorker

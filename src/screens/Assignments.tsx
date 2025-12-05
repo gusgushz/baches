@@ -896,4 +896,3 @@ export default function AssignmentsScreen() {
     </div>
   )
 }
-
