@@ -15,6 +15,7 @@ export default function VehiclesScreen() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null)
 
   const [isCreating, setIsCreating] = useState(false)
@@ -67,6 +68,7 @@ export default function VehiclesScreen() {
     } finally { setLoading(false) }
   }
 
+
   const openEdit = (v: any) => {
     setEditingVehicle(v)
     setLicensePlate(v.licensePlate)
@@ -81,10 +83,25 @@ export default function VehiclesScreen() {
     const payload = { licensePlate, model, year, color, corporation }
     try {
       const res = await createVehicle(payload, token!)
-      setVehicles(prev => [res, ...(prev || [])])
+
+      // Try to extract created vehicle from response
+      const created = res && (res.vehicle || res.data || res || null)
+      const newVehicle = (created && typeof created === 'object') ? created : { id: String(Date.now()), ...payload, status: 'active' }
+
+      setVehicles(prev => [newVehicle, ...(prev || [])])
       setIsCreating(false)
-      alert('Vehículo creado')
-    } catch { alert('Error creando') }
+      resetVehicleForm()
+      await Swal.fire({
+        icon: 'success',
+        title: 'Vehículo creado',
+        text: 'El vehículo se registró correctamente.',
+        timer: 1500,
+        showConfirmButton: false,
+      })
+    } catch (e: any) {
+      console.error('createVehicle error', e)
+      await Swal.fire({ icon: 'error', title: 'Error', text: e?.message || 'No se pudo crear el vehículo' })
+    }
   }
 
   const handleUpdate = async () => {
@@ -92,30 +109,69 @@ export default function VehiclesScreen() {
     const payload = { licensePlate, model, year, color, corporation, status }
     try {
       const res = await updateVehicle(editingVehicle.id, payload, token!)
-      setVehicles(prev => prev?.map(v => v.id === editingVehicle.id ? res : v) || prev)
+
+      const updated = res && (res.vehicle || res.data || res || null)
+      const updatedVehicle = (updated && typeof updated === 'object') ? updated : { ...editingVehicle, ...payload }
+
+      setVehicles(prev => prev?.map(v => v.id === editingVehicle.id ? updatedVehicle : v) || prev)
       setEditingVehicle(null)
-      alert('Vehículo actualizado')
-    } catch { alert('Error actualizando') }
+      resetVehicleForm()
+      await Swal.fire({
+        icon: 'success',
+        title: 'Vehículo actualizado',
+        text: 'Los cambios se guardaron correctamente.',
+        timer: 1500,
+        showConfirmButton: false,
+      })
+    } catch (e: any) {
+      console.error('updateVehicle error', e)
+      await Swal.fire({ icon: 'error', title: 'Error', text: e?.message || 'No se pudo actualizar el vehículo' })
+    }
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar este vehículo?')) return
+    const confirm = await Swal.fire({
+      title: '¿Eliminar este vehículo?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#d33'
+    })
+
+    if (!confirm.isConfirmed) return
+
     try {
       await deleteVehicle(id, token!)
       setVehicles(prev => prev?.filter(v => v.id !== id) || [])
-      alert('Vehículo eliminado')
-    } catch { alert('Error eliminando') }
+      await Swal.fire({
+        icon: 'success',
+        title: 'Eliminado',
+        text: 'El vehículo fue eliminado correctamente.',
+        timer: 1500,
+        showConfirmButton: false,
+      })
+    } catch {
+      await Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo eliminar el vehículo' })
+    }
   }
 
   const safe = (v: any) => v ?? '—'
-  const filtered = (vehicles || []).filter(v => (v.model + ' ' + v.licensePlate).toLowerCase().includes(search.toLowerCase()))
+  const filtered = (vehicles || []).filter(v => {
+    const modelText = (v.model ?? '') + ' ' + (v.licensePlate ?? '')
+    const matchesSearch = modelText.toLowerCase().includes((search ?? '').toLowerCase())
+    const matchesStatus = statusFilter ? ((v.status ?? '') === statusFilter) : true
+    return matchesSearch && matchesStatus
+  })
 
 
   return (
     <div className="vehicles-page">
 
       <Header
-        title="Vehículos"
+        leftSlot={
+          <h2 className="vehicles-title">Vehículos ({filtered.length})</h2>
+        }
         centerSlot={
           <div className="header-search">
             <input
@@ -125,16 +181,21 @@ export default function VehiclesScreen() {
             />
           </div>
         }
-
+        rightSlot={
+          <button className="button-agregar-vehiculo" onClick={() => { resetVehicleForm(); setIsCreating(true); }}>+ Agregar</button>
+        }
       />
 
-      <h3 className="vehicles-title">Vehículos ({filtered.length})</h3>
+      <div className="filter-status-vehicles">
+        <select value={statusFilter ?? ''} onChange={e => setStatusFilter(e.target.value === '' ? null : e.target.value)} style={{ padding: '6px 8px', borderRadius: 6 }}>
+          <option value="">Todos</option>
+          <option value="active">Activo</option>
+          <option value="inactive">Inactivo</option>
+          <option value="maintenance">Mantenimiento</option>
+        </select>
+      </div>
 
-      <button className="button-agregar-vehiculo" onClick={() => { resetVehicleForm(); setIsCreating(true); }}>
-        + Agregar
-      </button>
 
-      {/* 🔥 TABLA A LO ANCHO */}
       <div className="vehicles-table-wrapper">
         <table className="vehicles-table">
           <thead>
@@ -144,9 +205,10 @@ export default function VehiclesScreen() {
               <th>Año</th>
               <th>Color</th>
               <th>Corporación</th>
-              <th>Estatus</th>
+              <th>Estado</th>
               <th>Opciones</th>
             </tr>
+
           </thead>
 
           <tbody>
@@ -193,7 +255,7 @@ export default function VehiclesScreen() {
             <div className="modal-form">
               <label>
                 Placa
-                <input value={licensePlate} onChange={e => setLicensePlate(e.target.value)} />
+                <input maxLength={7} value={licensePlate} onChange={e => setLicensePlate(e.target.value)} />
               </label>
               <label>
                 Modelo
@@ -201,7 +263,7 @@ export default function VehiclesScreen() {
               </label>
               <label>
                 Año
-                <input type="number" value={year ?? ''} onChange={e => setYear(e.target.value === '' ? null : Number(e.target.value))} />
+                <input maxLength={4} value={year ?? ''} onChange={e => setYear(e.target.value === '' ? null : Number(e.target.value))} />
               </label>
               <label>
                 Color
@@ -224,7 +286,7 @@ export default function VehiclesScreen() {
             </div>
 
             <div className="modal-actions">
-                  {isCreating ? (
+              {isCreating ? (
                 <>
                   <button className="card-button" onClick={async () => { await handleCreate(); resetVehicleForm(); }}>Crear</button>
                   <button className="close-btn" onClick={() => { setIsCreating(false); resetVehicleForm(); }}>Cancelar</button>

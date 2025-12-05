@@ -17,6 +17,8 @@ export default function EmployeesScreen() {
     const [error, setError] = useState<string | null>(null)
     const [dropdownOpen, setDropdownOpen] = useState<Employee['id'] | null>(null)
     const [deletingId, setDeletingId] = useState<Employee['id'] | null>(null)
+    const [search, setSearch] = useState('')
+    const [statusFilter, setStatusFilter] = useState<string | null>(null)
     //Agregar trabajador
     const [createOpen, setCreateOpen] = useState(false)
     const [creating, setCreating] = useState(false)
@@ -32,8 +34,7 @@ export default function EmployeesScreen() {
     const [newPassword, setNewPassword] = useState<string | null>(null)
     const [showPassword, setShowPassword] = useState(false);
     const [passwordErrorList, setPasswordErrorList] = useState<string[]>([]);
-
-    const [newStatus, setNewStatus] = useState<string | null>('active')
+    
     const [newPhotoFile, setNewPhotoFile] = useState<File | null>(null);
     const [newPhotoPreview, setNewPhotoPreview] = useState<string | null>(null);
     // Edit worker
@@ -57,6 +58,13 @@ export default function EmployeesScreen() {
     const [editPasswordErrorList, setEditPasswordErrorList] = useState<string[]>([])
 
 
+    const resetCreateForm = () => {
+        setNewName(''); setNewSecondName(null); setNewLastname(''); setNewSecondLastname(null); setNewRole(''); setNewEmail(null); setNewPhone(null); setNewFechaNacimiento(null); setNewPassword(null); setNewPhotoFile(null); setNewPhotoPreview(null); setPasswordErrorList([]); setShowPassword(false); setCreateError(null); setCreating(false);
+    }
+
+    const resetEditForm = () => {
+        setEditId(null); setEditName(''); setEditSecondName(null); setEditLastname(''); setEditSecondLastname(null); setEditRole(null); setEditEmail(null); setEditPhone(null); setEditFechaNacimiento(null); setEditPassword(null); setEditStatus('active'); setEditPhotoFile(null); setEditPhotoPreview(null); setEditPasswordErrorList([]); setEditShowPassword(false); setEditError(null); setEditCreating(false);
+    }
 
     const openEdit = (w: Employee) => {
         // populate edit form
@@ -160,7 +168,7 @@ export default function EmployeesScreen() {
                 }
                 payload.password = newPassword;
             }
-            if (newStatus) payload.status = newStatus
+            // No enviar el `status` al crear: el servidor debe asignar 'active' por defecto
             if (newPhotoFile && newPhotoPreview) {
                 payload.photoUrl = newPhotoPreview;
             }
@@ -195,7 +203,7 @@ export default function EmployeesScreen() {
             }
 
             // reset form
-            setNewName(''); setNewSecondName(null); setNewLastname(''); setNewSecondLastname(null); setNewRole(''); setNewEmail(null); setNewPhone(null); setNewFechaNacimiento(null); setNewPassword(null); setNewStatus('active'); setNewPhotoFile(null); setNewPhotoPreview(null);
+            setNewName(''); setNewSecondName(null); setNewLastname(''); setNewSecondLastname(null); setNewRole(''); setNewEmail(null); setNewPhone(null); setNewFechaNacimiento(null); setNewPassword(null); setNewPhotoFile(null); setNewPhotoPreview(null);
 
         } catch (e: any) {
             console.error('createWorker error', e)
@@ -327,7 +335,7 @@ export default function EmployeesScreen() {
         if (!/[A-Z]/.test(pwd)) return "La contraseña debe contener al menos una letra mayúscula";
         if (!/[a-z]/.test(pwd)) return "La contraseña debe contener al menos una letra minúscula";
         if (!/[0-9]/.test(pwd)) return "La contraseña debe contener al menos un número";
-        if (!/[!*()\-_=+[\]|;:,./]/.test(pwd)) return "La contraseña debe contener al menos un símbolo";
+        if (!/[!*()\-_=+\[\]|;:,./]/.test(pwd)) return "La contraseña debe contener al menos un símbolo";
         return null;
     }
 
@@ -342,76 +350,131 @@ export default function EmployeesScreen() {
         setPasswordErrorList(error);
     }
 
+    const filtered = (workers || []).filter(w => {
+        const modelText = `${w.name ?? ''} ${w.secondName ?? ''} ${w.lastname ?? ''} ${w.email ?? ''}`
+        const matchesSearch = modelText.toLowerCase().includes((search ?? '').toLowerCase())
+        const matchesStatus = statusFilter ? ((w.status ?? '') === statusFilter) : true
+        return matchesSearch && matchesStatus
+    })
+
 
 
     return (
         <div className="employees-page">
             <Header
-                centerSlot={<div style={{ fontWeight: 700 }}>Trabajadores</div>}
+                leftSlot={<h2 className="vehicles-title">Trabajadores ({filtered.length})</h2>}
+                centerSlot={
+                    <div className="header-search">
+                        <input
+                            placeholder="Buscar trabajadores..."
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                        />
+                    </div>
+                }
                 rightSlot={<button className="button-agregar-employees" onClick={() => setCreateOpen(true)}>+ Agregar</button>}
             />
 
-            {/* Modal de creación */}
-            {createOpen && (
-                <div className="modal-overlay" onClick={() => setCreateOpen(false)}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()}>
-                        <h3>Agregar trabajador</h3>
+            <div className="filter-status-employees" style={{ margin: '10px 0' }}>
+                <select value={statusFilter ?? ''} onChange={e => setStatusFilter(e.target.value === '' ? null : e.target.value)} style={{ padding: '6px 8px', borderRadius: 6 }}>
+                    <option value="">Todos</option>
+                    <option value="active">Activo</option>
+                    <option value="inactive">Inactivo</option>
+                    <option value="suspended">Suspendido</option>
+                </select>
+            </div>
+
+            {/* Modal (crear + editar) */}
+            {(createOpen || editOpen) && (
+                <div className={createOpen ? 'modal-overlay' : 'modal-overlay'} onClick={() => {
+                        if (createOpen) {
+                        setCreateOpen(false);
+                        // reset create form
+                        setNewName(''); setNewSecondName(null); setNewLastname(''); setNewSecondLastname(null); setNewRole(''); setNewEmail(null); setNewPhone(null); setNewFechaNacimiento(null); setNewPassword(null); setNewPhotoFile(null); setNewPhotoPreview(null); setPasswordErrorList([]); setShowPassword(false); setCreateError(null);
+                    }
+                    if (editOpen) {
+                        setEditOpen(false);
+                        // reset edit form
+                        setEditId(null); setEditName(''); setEditSecondName(null); setEditLastname(''); setEditSecondLastname(null); setEditRole(null); setEditEmail(null); setEditPhone(null); setEditFechaNacimiento(null); setEditPassword(null); setEditStatus('active'); setEditPhotoFile(null); setEditPhotoPreview(null); setEditPasswordErrorList([]); setEditShowPassword(false); setEditError(null);
+                    }
+                }}>
+                    <div className={createOpen ? 'modal-content' : 'modal-content'} onClick={e => e.stopPropagation()}>
+                        <h3>{createOpen ? 'Agregar trabajador' : 'Editar trabajador'}</h3>
                         <div className="form-grid-3">
                             <label>
                                 Nombre
-                                <input value={newName} onChange={e => setNewName(e.target.value)} />
+                                <input value={createOpen ? newName : editName} onChange={e => createOpen ? setNewName(e.target.value) : setEditName(e.target.value)} />
                             </label>
                             <label>
                                 Segundo nombre
-                                <input value={newSecondName ?? ''} onChange={e => setNewSecondName(e.target.value || null)} />
+                                <input value={(createOpen ? newSecondName : editSecondName) ?? ''} onChange={e => createOpen ? setNewSecondName(e.target.value || null) : setEditSecondName(e.target.value || null)} />
                             </label>
                             <label>
                                 Apellido
-                                <input value={newLastname} onChange={e => setNewLastname(e.target.value)} />
+                                <input value={createOpen ? newLastname : editLastname} onChange={e => createOpen ? setNewLastname(e.target.value) : setEditLastname(e.target.value)} />
                             </label>
                             <label>
                                 Segundo apellido
-                                <input value={newSecondLastname ?? ''} onChange={e => setNewSecondLastname(e.target.value || null)} />
+                                <input value={(createOpen ? newSecondLastname : editSecondLastname) ?? ''} onChange={e => createOpen ? setNewSecondLastname(e.target.value || null) : setEditSecondLastname(e.target.value || null)} />
                             </label>
                             <label>
                                 Rol
-                                <select value={newRole} onChange={e => setNewRole(e.target.value)}>
-                                    <option value="">Seleccionar</option>
-                                    <option value="admin">admin</option>
-                                    <option value="supervisor">supervisor</option>
-                                    <option value="worker">worker</option>
-                                </select>
+                                {createOpen ? (
+                                    <select value={newRole} onChange={e => setNewRole(e.target.value)}>
+                                        <option value="">Seleccionar</option>
+                                        <option value="admin">admin</option>
+                                        <option value="supervisor">supervisor</option>
+                                        <option value="worker">worker</option>
+                                    </select>
+                                ) : (
+                                    <select value={editRole ?? ''} onChange={e => setEditRole(e.target.value || null)}>
+                                        <option value="">Seleccionar</option>
+                                        <option value="admin">admin</option>
+                                        <option value="supervisor">supervisor</option>
+                                        <option value="worker">worker</option>
+                                    </select>
+                                )}
                             </label>
                             <label>
                                 Email
-                                <input value={newEmail ?? ''} onChange={e => setNewEmail(e.target.value || null)} />
+                                <input value={(createOpen ? newEmail : editEmail) ?? ''} onChange={e => createOpen ? setNewEmail(e.target.value || null) : setEditEmail(e.target.value || null)} />
                             </label>
                             <label>
                                 Teléfono
-                                <input maxLength={10} value={newPhone ?? ''} onChange={e => { const value = e.target.value.replace(/\D/g, ''); setNewPhone(value || null) }} />
+                                <input maxLength={10} value={(createOpen ? newPhone : editPhone) ?? ''} onChange={e => { const value = e.target.value.replace(/\D/g, ''); createOpen ? setNewPhone(value || null) : setEditPhone(value || null) }} />
                             </label>
                             <label>
                                 Fecha de nacimiento
-                                <input type="date" value={newFechaNacimiento ? newFechaNacimiento.split('T')[0] : ''} onChange={e => setNewFechaNacimiento(e.target.value || null)} />
+                                <input type="date" value={(createOpen ? (newFechaNacimiento ? newFechaNacimiento.split('T')[0] : '') : (editFechaNacimiento ? editFechaNacimiento.split('T')[0] : ''))} onChange={e => createOpen ? setNewFechaNacimiento(e.target.value || null) : setEditFechaNacimiento(e.target.value || null)} />
                             </label>
 
                             <label>
-                                Contraseña
+                                Contraseña{!createOpen && ' (dejar en blanco para no modificar)'}
                                 <div style={{ position: 'relative' }}>
                                     <input
-                                        type={showPassword ? "text" : "password"}
-                                        value={newPassword ?? ''}
+                                        type={createOpen ? (showPassword ? 'text' : 'password') : (editShowPassword ? 'text' : 'password')}
+                                        value={(createOpen ? newPassword : editPassword) ?? ''}
                                         onChange={e => {
-                                            const val = e.target.value;
-                                            setNewPassword(val || null);
-                                            validatePasswordLive(val);
+                                            const val = e.target.value
+                                            if (createOpen) {
+                                                setNewPassword(val || null);
+                                                validatePasswordLive(val);
+                                            } else {
+                                                setEditPassword(val || null)
+                                                const errs: string[] = []
+                                                if (val.length < 8) errs.push('La contraseña debe tener al menos 8 caracteres')
+                                                if (!/[A-Z]/.test(val)) errs.push('Debe contener al menos una letra mayúscula')
+                                                if (!/[a-z]/.test(val)) errs.push('Debe contener al menos una letra minúscula')
+                                                if (!/[0-9]/.test(val)) errs.push('Debe contener al menos un número')
+                                                if (!/[!*()\-_=+\[\]|;:,./]/.test(val)) errs.push('Debe contener al menos un símbolo')
+                                                setEditPasswordErrorList(errs)
+                                            }
                                         }}
                                         style={{ paddingRight: 35 }}
                                     />
 
-                                    {/* OJITO */}
                                     <span
-                                        onClick={() => setShowPassword(!showPassword)}
+                                        onClick={() => { createOpen ? setShowPassword(!showPassword) : setEditShowPassword(!editShowPassword) }}
                                         style={{
                                             position: 'absolute',
                                             right: 10,
@@ -424,9 +487,9 @@ export default function EmployeesScreen() {
                                             justifyContent: 'center'
                                         }}
                                         role="button"
-                                        aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                                        aria-label={(createOpen ? showPassword : editShowPassword) ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                                     >
-                                        {showPassword ? (
+                                        {(createOpen ? showPassword : editShowPassword) ? (
                                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
                                                 <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                                                 <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -441,157 +504,36 @@ export default function EmployeesScreen() {
                                         )}
                                     </span>
                                 </div>
+
                             </label>
 
                             {/* ERRORES DE CONTRASEÑA EN TIEMPO REAL */}
-                            {passwordErrorList.length > 0 && (
-                                <ul style={{ color: 'red', fontSize: 13, marginTop: 4, paddingLeft: 18 }}>
-                                    {passwordErrorList.map((e, i) => (
-                                        <li key={i}>{e}</li>
-                                    ))}
-                                </ul>
-                            )}
-
-                            <label>
-                                Estado
-                                <input value={newStatus ?? ''} onChange={e => setNewStatus(e.target.value || null)} />
-                            </label>
-                            <label>
-                                Foto
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={(e) => {
-                                        const file = e.target.files?.[0] || null;
-                                        setNewPhotoFile(file);
-
-                                        if (file) {
-                                            const reader = new FileReader();
-                                            reader.onloadend = () => {
-                                                setNewPhotoPreview(reader.result as string);
-                                            };
-                                            reader.readAsDataURL(file);
-                                        } else {
-                                            setNewPhotoPreview(null);
-                                        }
-                                    }}
-                                />
-                            </label>
-
-                            {newPhotoPreview && (
-                                <img
-                                    src={newPhotoPreview}
-                                    alt="Previsualización"
-                                    style={{ width: 100, height: 100, borderRadius: 10, marginTop: 8 }}
-                                />
-                            )}
-
-                        </div>
-                        {createError && <div style={{ color: '#b91c1c', marginTop: 8 }}>{createError}</div>}
-
-                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
-                            <button className="small" onClick={() => setCreateOpen(false)} disabled={creating}>Cancelar</button>
-
-                            <button className="small" onClick={handleCreate} disabled={creating}>{creating ? 'Creando…' : 'Crear'}</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Modal de edición */}
-            {editOpen && (
-                <div className="modal-overlay" onClick={() => setEditOpen(false)}>
-
-                    <div className="modal-content" onClick={e => e.stopPropagation()}>
-                        <h3>Editar trabajador</h3>
-                        <div className="form-grid-3">
-                            <label>
-                                Nombre
-                                <input value={editName} onChange={e => setEditName(e.target.value)} />
-                            </label>
-                            <label>
-                                Segundo nombre
-                                <input value={editSecondName ?? ''} onChange={e => setEditSecondName(e.target.value || null)} />
-                            </label>
-                            <label>
-                                Apellido
-                                <input value={editLastname} onChange={e => setEditLastname(e.target.value)} />
-                            </label>
-                            <label>
-                                Segundo apellido
-                                <input value={editSecondLastname ?? ''} onChange={e => setEditSecondLastname(e.target.value || null)} />
-                            </label>
-                            <label>
-                                Rol
-                                <select value={editRole ?? ''} onChange={e => setEditRole(e.target.value || null)}>
-                                    <option value="">Seleccionar</option>
-                                    <option value="admin">admin</option>
-                                    <option value="supervisor">supervisor</option>
-                                    <option value="worker">worker</option>
-                                </select>
-                            </label>
-                            <label>
-                                Email
-                                <input value={editEmail ?? ''} onChange={e => setEditEmail(e.target.value || null)} />
-                            </label>
-                            <label>
-                                Teléfono
-                                <input maxLength={10} value={editPhone ?? ''} onChange={e => { const value = e.target.value.replace(/\D/g, ''); setEditPhone(value || null) }} />
-                            </label>
-                            <label>
-                                Fecha de nacimiento
-                                <input type="date" value={editFechaNacimiento ? editFechaNacimiento.split('T')[0] : ''} onChange={e => setEditFechaNacimiento(e.target.value || null)} />
-                            </label>
-                            <label>
-                                Estado
-                                <select value={editStatus ?? ''} onChange={e => setEditStatus(e.target.value || null)}>
-                                    <option value="active">active</option>
-                                    <option value="inactive">inactive</option>
-                                    <option value="suspended">suspended</option>
-                                </select>
-                            </label>
-
-                            <label>
-                                Contraseña
-                                <div style={{ position: 'relative' }}>
-                                    <input
-                                        type={editShowPassword ? 'text' : 'password'}
-                                        value={editPassword ?? ''}
-                                        onChange={e => {
-                                            const val = e.target.value
-                                            setEditPassword(val || null)
-                                            const errs: string[] = []
-                                            if (val.length < 8) errs.push('La contraseña debe tener al menos 8 caracteres')
-                                            if (!/[A-Z]/.test(val)) errs.push('Debe contener al menos una letra mayúscula')
-                                            if (!/[a-z]/.test(val)) errs.push('Debe contener al menos una letra minúscula')
-                                            if (!/[0-9]/.test(val)) errs.push('Debe contener al menos un número')
-                                            if (!/[!*()\-_=+\[\]|;:,./]/.test(val)) errs.push('Debe contener al menos un símbolo')
-                                            setEditPasswordErrorList(errs)
-                                        }}
-                                        style={{ paddingRight: 35 }}
-                                    />
-                                    <span onClick={() => setEditShowPassword(!editShowPassword)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', opacity: 0.85 }} role="button" aria-label={editShowPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}>
-                                        {editShowPassword ? (
-                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-                                                <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                                <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                            </svg>
-                                        ) : (
-                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-                                                <path d="M17.94 17.94A10.94 10.94 0 0112 19c-7 0-11-7-11-7a20.3 20.3 0 014.12-5.05" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                                <path d="M1 1l22 22" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                                <path d="M9.88 9.88A3 3 0 0012 15c1.03 0 1.96-.5 2.56-1.28" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                                <path d="M14.12 14.12A3 3 0 019.88 9.88" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                            </svg>
-                                        )}
-                                    </span>
-                                </div>
-                                {editPasswordErrorList.length > 0 && (
+                            {createOpen ? (
+                                passwordErrorList.length > 0 && (
+                                    <ul style={{ color: 'red', fontSize: 13, marginTop: 4, paddingLeft: 18 }}>
+                                        {passwordErrorList.map((e, i) => (
+                                            <li key={i}>{e}</li>
+                                        ))}
+                                    </ul>
+                                )
+                            ) : (
+                                editPasswordErrorList.length > 0 && (
                                     <ul style={{ color: 'red', fontSize: 13, marginTop: 4, paddingLeft: 18 }}>
                                         {editPasswordErrorList.map((e, i) => <li key={i}>{e}</li>)}
                                     </ul>
-                                )}
-                            </label>
+                                )
+                            )}
+
+                            {!createOpen && (
+                                <label>
+                                    Estado
+                                    <select value={editStatus ?? ''} onChange={e => setEditStatus(e.target.value || null)}>
+                                        <option value="active">active</option>
+                                        <option value="inactive">inactive</option>
+                                        <option value="suspended">suspended</option>
+                                    </select>
+                                </label>
+                            )}
 
                             <label>
                                 Foto
@@ -600,38 +542,50 @@ export default function EmployeesScreen() {
                                     accept="image/*"
                                     onChange={(e) => {
                                         const file = e.target.files?.[0] || null;
-                                        setEditPhotoFile(file);
-
-                                        if (file) {
-                                            const reader = new FileReader();
-                                            reader.onloadend = () => {
-                                                setEditPhotoPreview(reader.result as string);
-                                            };
-                                            reader.readAsDataURL(file);
+                                        if (createOpen) {
+                                            setNewPhotoFile(file);
+                                            if (file) {
+                                                const reader = new FileReader();
+                                                reader.onloadend = () => { setNewPhotoPreview(reader.result as string); };
+                                                reader.readAsDataURL(file);
+                                            } else { setNewPhotoPreview(null); }
                                         } else {
-                                            setEditPhotoPreview(null);
+                                            setEditPhotoFile(file);
+                                            if (file) {
+                                                const reader = new FileReader();
+                                                reader.onloadend = () => { setEditPhotoPreview(reader.result as string); };
+                                                reader.readAsDataURL(file);
+                                            } else { setEditPhotoPreview(null); }
                                         }
                                     }}
                                 />
                             </label>
 
-                            {editPhotoPreview && (
+                            {(createOpen ? newPhotoPreview : editPhotoPreview) && (
                                 <img
-                                    src={editPhotoPreview}
+                                    src={createOpen ? newPhotoPreview as string : editPhotoPreview as string}
                                     alt="Previsualización"
                                     style={{ width: 100, height: 100, borderRadius: 10, marginTop: 8 }}
                                 />
                             )}
 
                         </div>
-                        {editError && <div style={{ color: '#b91c1c', marginTop: 8 }}>{editError}</div>}
+                        {createOpen ? (createError && <div style={{ color: '#b91c1c', marginTop: 8 }}>{createError}</div>) : (editError && <div style={{ color: '#b91c1c', marginTop: 8 }}>{editError}</div>)}
 
-                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
-                            <button className="small" onClick={() => setEditOpen(false)} disabled={editCreating}>Cancelar</button>
-                            <button className="small" onClick={() => handleUpdate(editId)} disabled={editCreating}>{editCreating ? 'Guardando…' : 'Guardar'}</button>
+                        <div className="modal-actions">
+                            {createOpen ? (
+                                <>
+                                    <button className="card-button" onClick={async () => { await handleCreate(); /* reset handled inside handler */ }}>{creating ? 'Creando…' : 'Crear'}</button>
+                                    <button className="close-btn" onClick={() => { setCreateOpen(false); setCreateError(null); resetCreateForm(); }}>Cancelar</button>
+                                </>
+                            ) : (
+                                <>
+                                    <button className="card-button" onClick={async () => { await handleUpdate(editId); }}>{editCreating ? 'Guardando…' : 'Guardar'}</button>
+                                    <button className="close-btn" onClick={() => { setEditOpen(false); setEditError(null); resetEditForm(); }}>Cancelar</button>
+                                </>
+                            )}
                         </div>
                     </div>
-
                 </div>
             )}
 
@@ -655,7 +609,12 @@ export default function EmployeesScreen() {
                         </thead>
 
                         <tbody>
-                            {workers.map(w => (
+                            {filtered.length === 0 ? (
+                                <tr>
+                                    <td colSpan={7} style={{ textAlign: 'center', padding: 16 }}>No hay resultados que coincidan.</td>
+                                </tr>
+                            ): 
+                                filtered.map(w => (
                                 <tr key={w.id}>
                                     <td>
                                         <div className="empleado-foto">
@@ -709,5 +668,6 @@ export default function EmployeesScreen() {
                 </div>
             )}
         </div>
-    )
+    
+    );
 }

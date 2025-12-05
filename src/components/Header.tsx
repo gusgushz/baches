@@ -8,9 +8,10 @@ type HeaderProps = {
   rightSlot?: React.ReactNode
 }
 
-export default function Header({ centerSlot, rightSlot }: HeaderProps) {
+export default function Header({leftSlot, centerSlot, rightSlot }: HeaderProps) {
   return (
     <header className="app-header">
+      <div className="app-header__left">{leftSlot}</div>
       <div className="app-header__center">{centerSlot}</div>
       <div className="app-header__right">{rightSlot}</div>
     </header>
