@@ -1,8 +1,5 @@
 .nav-bar{
   width: 220px;
-  min-width:180px;
-  /* Make the sidebar fixed to the viewport so scrolling the main content
-     does not leave a blank area where the sidebar used to be. */
   position: fixed;
   top: 0;
   left: 0;
@@ -15,32 +12,172 @@
   box-sizing:border-box;
   border-right:1px solid rgba(0,0,0,0.04);
   z-index: 60;
+  transition: width 0.3s ease;
 }
 
-.brand{width:100%;display:flex;justify-content:center;padding:8px 0 18px 0}
-.brand-logo{width:72px;height:72px;background:linear-gradient(#fff,#f2f6fb);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;color:#0f3660;border:2px solid rgba(15,54,96,0.06)}
-.brand-logo .brand-img{width:56px;height:56px;object-fit:contain}
+.nav-bar--collapsed {
+  width: 72px;
+}
 
-.nav-list{display:flex;flex-direction:column;gap:12px;width:100%;align-items:flex-start}
-.nav-link{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;color:#0b1320;text-decoration:none;width:100%}
-.nav-link .icon{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px}
-.nav-link .label{font-size:16px}
-.nav-link:hover{background:rgba(11,19,32,0.04)}
-.nav-link.active{background:#fff;border-left:4px solid #0f766e;padding-left:10px;font-weight:700}
+.sidebar-collapse-btn {
+  position: absolute;
+  right: -12px;
+  top: 20px;
+  background: transparent;
+  border: none;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #0b1320;
+  transition: all 0.3s ease;
+  padding: 0;
+}
 
-.nav-footer{margin-top:auto;width:100%;padding-top:12px}
-.logout-button{background:transparent;border:none;cursor:pointer;display:flex;align-items:center;gap:12px;padding:10px 12px;width:100%;border-radius:8px}
-.logout-button:hover{background:rgba(11,19,32,0.04)}
+.sidebar-collapse-btn:hover {
+  color: #0f766e;
+}
+
+.nav-bar--collapsed .sidebar-collapse-btn {
+  transform: rotate(180deg);
+}
+
+.brand{
+  width:100%;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  padding:8px 0 18px 0;
+  transition: padding 0.3s ease;
+}
+
+.nav-bar--collapsed .brand {
+  padding: 8px 0 12px 0;
+}
+
+.brand-logo{
+  width:72px;
+  height:72px;
+  background:linear-gradient(#fff,#f2f6fb);
+  border-radius:8px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:800;
+  color:#0f3660;
+  border:2px solid rgba(15,54,96,0.06);
+  transition: width 0.3s ease, height 0.3s ease;
+}
+
+.nav-bar--collapsed .brand-logo{
+  width:44px;
+  height:44px;
+}
+
+.brand-logo .brand-img{
+  width:56px;
+  height:56px;
+  object-fit:contain;
+  transition: width 0.3s ease, height 0.3s ease;
+}
+
+.nav-bar--collapsed .brand-logo .brand-img{
+  width:36px;
+  height:36px;
+}
+
+.nav-list{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  width:100%;
+  align-items:flex-start;
+}
+
+.nav-link{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:10px 12px;
+  border-radius:8px;
+  color:#0b1320;
+  text-decoration:none;
+  width:100%;
+  transition: background 0.2s ease;
+}
+
+.nav-link .icon{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:32px;
+  height:32px;
+  flex-shrink:0;
+}
+
+.nav-link .label{
+  font-size:16px;
+  white-space:nowrap;
+}
+
+.nav-link:hover{
+  background:rgba(11,19,32,0.04);
+}
+
+.nav-link.active{
+  background:#fff;
+  border-left:4px solid #0f766e;
+  padding-left:10px;
+  font-weight:700;
+}
+
+.nav-bar--collapsed .nav-link .label {
+  display: none;
+}
+
+.nav-footer{
+  margin-top:auto;
+  width:100%;
+  padding-top:12px;
+}
+
+.logout-button{
+  background:transparent;
+  border:none;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:10px 12px;
+  width:100%;
+  border-radius:8px;
+  transition: background 0.2s ease;
+}
+
+.logout-button:hover{
+  background:rgba(11,19,32,0.04);
+}
+
+.nav-bar--collapsed .logout-button .label {
+  display: none;
+}
+
+.app-content-placeholder{
+  margin-left: 220px;
+  transition: margin-left 0.3s ease;
+}
 
 @media (max-width:900px){
-  .nav-bar{width:72px;padding:12px}
-  .brand-logo{width:44px;height:44px;font-size:12px}
-  .brand-logo .brand-img{width:36px;height:36px}
-  .nav-link .label{display:none}
+  .nav-bar{
+    width:72px;
+    padding:12px;
+  }
+  .brand{
+    display:none;
+  }
+  .nav-link .label{
+    display:none;
+  }
 }
-
-/* When sidebar is fixed, content should account for its width. We keep
-   a CSS helper class for the app content to set a left margin equal to
-   the sidebar width; responsive rule matches the sidebar media query. */
-.app-content-placeholder{ margin-left: 220px; }
-@media (max-width:900px){ .app-content-placeholder{ margin-left: 72px; } }

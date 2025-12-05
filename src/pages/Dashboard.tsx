@@ -75,6 +75,43 @@ export default function DashboardScreen({
   async function fetchAll(path: string) {
     const base = getBase();
     try {
+      // Para reportes, cargar todos con paginación
+      if (path === 'reports') {
+        let allItems: unknown[] = []
+        let skip = 0
+        const limit = 100
+        let hasMore = true
+        
+        while (hasMore) {
+          const res = await fetch(`${base}/${path}?limit=${limit}&skip=${skip}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          });
+          if (!res.ok) {
+            const txt = await res.text().catch(() => '');
+            throw new Error(`API ${path} respondió ${res.status}. ${txt}`);
+          }
+          const data = await res.json();
+          const items = Array.isArray(data) ? data : (data?.reports ?? data?.data ?? []);
+          
+          if (!Array.isArray(items)) {
+            hasMore = false;
+            break;
+          }
+          
+          allItems = allItems.concat(items);
+          console.log(`Dashboard: Cargados ${allItems.length} reportes`);
+          
+          if (items.length < limit) {
+            hasMore = false;
+          }
+          
+          skip += limit;
+        }
+        
+        return allItems;
+      }
+      
+      // Para otros endpoints, hacer un simple fetch
       const res = await fetch(`${base}/${path}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });

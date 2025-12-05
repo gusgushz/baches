@@ -119,16 +119,6 @@ export default function EmployeesScreen() {
 
             setError(message);
 
-<<<<<<< HEAD
-  return (
-    <div className="page">
-      <div className="panel">
-      <Header
-        title="Trabajadores"
-        centerSlot={<span style={{ fontWeight: 700, fontSize: '1.05rem' }}>Trabajadores</span>}
-        centered={true}
-      />
-=======
             // Error visual
             await Swal.fire({
                 icon: 'error',
@@ -141,7 +131,6 @@ export default function EmployeesScreen() {
             setDropdownOpen(null);
         }
     };
->>>>>>> 107fa45616f1412b7f53602e8dd0fd9ad9a9f790
 
     const handleCreate = async () => {
         // simple validation
@@ -720,13 +709,5 @@ export default function EmployeesScreen() {
                 </div>
             )}
         </div>
-<<<<<<< HEAD
-        </ModalErrorBoundary>
-      )}
-      </div>
-    </div>
-  )
-=======
     )
->>>>>>> 107fa45616f1412b7f53602e8dd0fd9ad9a9f790
 }

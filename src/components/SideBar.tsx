@@ -1,5 +1,6 @@
 import { NavLink } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
+import { useSidebar } from "../contexts/SidebarContext";
 import "./SideBar.css";
 import EbyLogo from "../assets/Eby.png";
 
@@ -45,8 +46,15 @@ const IconAssignments = (
   </svg>
 )
 
+const IconMenu = (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M3 6h18M3 12h18M3 18h18" stroke="#111" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+)
+
 export const SideBar: React.FC = () => {
   const { logout } = useAuth();
+  const { isOpen, toggleSidebar } = useSidebar();
 
   const items: NavItem[] = [
     { to: "/dashboard", label: "Home", icon: IconHome },
@@ -57,7 +65,18 @@ export const SideBar: React.FC = () => {
   ];
 
   return (
-    <aside className="nav-bar" aria-label="Main navigation">
+    <aside className={`nav-bar ${!isOpen ? 'nav-bar--collapsed' : ''}`} aria-label="Main navigation">
+      <button 
+        className="sidebar-collapse-btn"
+        onClick={toggleSidebar}
+        aria-label="Toggle sidebar"
+        title="Toggle sidebar"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M15 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
       <div className="brand">
         <div className="brand-logo">
           <img src={EbyLogo} alt="EBY logo" className="brand-img" />
