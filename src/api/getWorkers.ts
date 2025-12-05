@@ -1,54 +1,65 @@
-import type { Employee } from "../models";
+import type { Employee } from '../models/Employees'
 
-const API_URL = (import.meta.env.VITE_BACKEND_URL ? String(import.meta.env.VITE_BACKEND_URL).replace(/\/$/, '') : 'https://baches-yucatan.onrender.com') + '/workers';
+const DEFAULT_URL = 'https://baches-yucatan.onrender.com/api/workers'
 
-function extractArrayFromResponse(json: any): any[] {
-  if (!json) return [];
-  if (Array.isArray(json)) return json;
-  if (Array.isArray(json.workers)) return json.workers;
-  if (Array.isArray(json.data)) return json.data;
-  if (Array.isArray(json.docs)) return json.docs;
-  if (Array.isArray(json.items)) return json.items;
-  const arrKey = Object.keys(json).find(k => Array.isArray(json[k]));
-  if (arrKey) return json[arrKey];
-  return [];
+async function extractArrayFromResponse(resp: any): Promise<any[]> {
+  if (!resp) return []
+  if (Array.isArray(resp)) return resp
+  if (Array.isArray(resp.data)) return resp.data
+  if (Array.isArray(resp.items)) return resp.items
+  if (Array.isArray(resp.workers)) return resp.workers
+  if (Array.isArray(resp.results)) return resp.results
+  for (const k of Object.keys(resp || {})) {
+    if (Array.isArray((resp as any)[k])) return (resp as any)[k]
+  }
+  return []
 }
 
-const getWorkers = async (token?: string): Promise<Employee[]> => {
-  if (!token) throw new Error('No autorizado');
-
-  const res = await fetch(API_URL, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err?.message || `Error ${res.status}`);
+export default async function getWorkers(token?: string): Promise<Employee[]> {
+  const envBase = (import.meta as any).env?.VITE_BACKEND_URL
+  const base = envBase || DEFAULT_URL
+  const normalized = base.replace(/\/+$/, '')
+  let url: string
+  if (normalized.endsWith('/api/workers') || normalized.endsWith('/workers')) {
+    url = normalized
+  } else if (normalized.endsWith('/api')) {
+    url = `${normalized}/workers`
+  } else {
+    url = `${normalized}/api/workers`
   }
 
-  const json = await res.json().catch(() => ({}));
-  // Log raw response to help debugging
-  console.debug('getWorkers raw response:', json);
-  const items = extractArrayFromResponse(json) as any[];
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (token) headers['Authorization'] = `Bearer ${token}`
 
-  return items.map((w: any) => ({
-    id: w.id || w._id || String(w.id || ''),
-    name: w.name || w.fullname || w.username || 'Sin nombre',
-    role: w.role || w.position || 'trabajador',
-    email: w.email ?? null,
-    // map lastname and possible variants; ensure non-empty string to satisfy type
-    lastname: w.lastname || w.lastName || w.last_name || w.surname || '',
-    secondName: w.secondName || w.middleName || w.second_name || null,
-    secondLastname: w.secondLastname || w.second_lastname || null,
-    // prefer phoneNumber field, fallback to phone
-    phoneNumber: w.phoneNumber ?? w.phone ?? w.phone_number ?? null,
-    fechaNacimiento: w.fechaNacimiento || w.birthdate || w.birth_date || null,
-    status: w.status || w.state || null,
-    photoUrl: w.photoUrl || w.photo_url || w.avatar || null,
-    assignedVehicleId: w.assignedVehicleId || w.vehicleId || null,
-    createdAt: w.createdAt || w.created_at || null
-  }));
-};
+  const res = await fetch(url, { method: 'GET', headers })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`getWorkers failed: ${res.status} ${res.statusText} ${text}`)
+  }
 
-export default getWorkers;
+  let json: any
+  try {
+    json = await res.json()
+  } catch (e) {
+    return []
+  }
 
+  const arr = await extractArrayFromResponse(json)
+
+  const mapped: Employee[] = arr.map((it: any) => ({
+    id: it.id || it._id || it.workerId || '',
+    role: it.role || it.position || '' ,
+    email: it.email || it.username || '',
+    name: it.name || it.firstName || it.nombre || '',
+    secondName: it.secondName || it.middleName || null,
+    lastname: it.lastname || it.lastName || it.apellido || '',
+    secondLastname: it.secondLastname || null,
+    phoneNumber: it.phoneNumber ?? it.phone ?? null,
+    fechaNacimiento: it.fechaNacimiento || it.birthDate || null,
+    passwordHash: it.passwordHash || null,
+    status: it.status || it.state || 'active',
+    photoUrl: it.photoUrl || it.avatar || null,
+  }))
+
+  return mapped
+}

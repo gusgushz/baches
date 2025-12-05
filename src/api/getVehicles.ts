@@ -56,6 +56,7 @@ export default async function getVehicles(token?: string): Promise<Vehicle[]> {
     color: it.color ?? null,
     corporation: it.corporation ?? null,
     status: (it.status || it.state || it.condition || 'unknown'),
+    assignedWorkerId: it.assignedWorker || it.workerId || it.employeeId || it.driverId || null,
   }))
 
   return mapped

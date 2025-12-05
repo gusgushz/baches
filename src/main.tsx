@@ -9,7 +9,7 @@ import {
   ErrorScreen,
   LoginScreen,
   ReportsScreen,
-  AssignmentsScreen,
+  //AssignmentsScreen,
   SettingsScreen,
   VehiclesScreen,
 } from "./screens/";
@@ -34,7 +34,7 @@ createRoot(document.getElementById("root")!).render(
             <Route path="dashboard" element={<DashboardScreen />} />
             <Route path="employees" element={<EmployeesScreen />} />
             <Route path="vehicles" element={<VehiclesScreen />} />
-            <Route path="assignments" element={<AssignmentsScreen />} />
+            {/* <Route path="assignments" element={<AssignmentsScreen />} /> */}
             <Route path="reports" element={<ReportsScreen />} />
             <Route path="settings" element={<SettingsScreen />} />
           </Route>
