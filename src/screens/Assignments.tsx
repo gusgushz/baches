@@ -4,6 +4,7 @@ import { updateWorker, deleteWorker } from '../api'
 import './Assignments.css'
 import '../styles/Employees.css'
 import Header from '../components/Header'
+import Swal from 'sweetalert2'
 
 type Assignment = {
   id: string
@@ -106,7 +107,7 @@ export default function AssignmentsScreen() {
   const isAdmin = String(user.role || '').toLowerCase() === 'admin'
   const canManage = isSupervisor || isAdmin
 
-  const defaultBase = 'https://baches-yucatan.onrender.com/api'
+  const defaultBase = 'https://baches-yucatan-1.onrender.com/api'
   const buildApiUrl = (path: string) => {
     const envBase = import.meta.env.VITE_BACKEND_URL ?? ''
     const base = envBase || defaultBase
@@ -148,7 +149,7 @@ export default function AssignmentsScreen() {
           notes: a.notes || '',
           assignedAt: a.assignedAt,
           completedAt: a.completedAt,
-          assignedTo: assigned ? (typeof assigned === 'string' ? assigned : { id: assigned.id || assigned._id || assignedId || undefined, name: assigned.name || assigned.nombre || undefined, lastname: assigned.lastname || assigned.lastName || assigned.apellido || undefined, email: assigned.email || undefined }) : undefined,
+          assignedTo: assigned ? (typeof assigned === 'string' ? assigned : { id: assigned.id || assigned._id || assignedId || undefined, name: assigned.name || assigned.nombre || undefined, lastname: assigned.lastname || assigned.lastName || assigned.apellido || undefined, email: assigned.email || undefined, photoUrl: assigned.photoUrl || undefined }) : undefined,
           vehicle: vehicle ? (typeof vehicle === 'string' ? { plate: vehicle } : { id: vehicle.id || vehicle._id || undefined, plate: vehicle.licensePlate || vehicle.plate || vehicle.plateNumber || undefined, model: vehicle.model || vehicle.brand || undefined }) : null,
           scheduledAt: a.scheduledAt || a.date || a.due || undefined,
           createdAt: a.createdAt || a.created || undefined,
@@ -227,6 +228,14 @@ export default function AssignmentsScreen() {
 
       await load()
       setCreating(false)
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'Asignación creada',
+        text: 'La asignación se creó correctamente.',
+        timer: 1400,
+        showConfirmButton: false
+      })
 
     } catch (e: any) {
       console.error("Error creando asignación", e)
@@ -320,6 +329,14 @@ export default function AssignmentsScreen() {
       await load()
       setSelected(prev => (prev?.id === id ? { ...(prev as any), ...(payload as any) } : prev))
 
+      await Swal.fire({
+        icon: 'success',
+        title: 'Asignación actualizada',
+        text: 'Los cambios se guardaron correctamente.',
+        timer: 1400,
+        showConfirmButton: false
+      })
+
     } catch (error: any) {
       console.error("handleUpdate", error)
       setError(error?.message ?? "No se pudo actualizar")
@@ -330,6 +347,14 @@ export default function AssignmentsScreen() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('¿Eliminar esta asignación? Esta acción no se puede deshacer.')) return
+    if (!confirm('Confirmación final: ¿Seguro que deseas eliminarla?')) return
+    // Salvaguarda adicional: no permitir borrar si está en progreso
+    const current = items.find(a => a.id === id)
+    const currentStatus = (current as any)?.progressStatus ?? (current as any)?.status
+    if (String(currentStatus) === 'in_progress') {
+      alert('No se puede eliminar: la asignación está en progreso')
+      return
+    }
     setSubmitting(true)
     try {
       const headers: Record<string,string> = { 'Content-Type': 'application/json' }
@@ -341,6 +366,14 @@ export default function AssignmentsScreen() {
       }
       await load()
       setSelected(null)
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'Asignación eliminada',
+        text: 'La asignación se eliminó correctamente.',
+        timer: 1400,
+        showConfirmButton: false
+      })
     } catch (e: any) {
       console.error(e)
       setError(e && e.message ? String(e.message) : 'No se pudo eliminar')
@@ -585,13 +618,13 @@ export default function AssignmentsScreen() {
       <Header
         title="Asignaciones"
         centerSlot={
-          <div style={{ position: 'relative', display: 'flex', gap: 8 }}>
+          <div className="assignments-filter-wrapper">
             <button className="filter-btn" onClick={() => setShowFilterMenu(s => !s)}>
               {filterBy === 'all' ? 'Filtrar' : filterBy === 'workerAZ' ? 'Trabajador A-Z' : 'Vehículo A-Z'}
             </button>
             {showFilterMenu && (
-              <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, background: '#fff', border: '1px solid #e6e9ee', padding: 8, borderRadius: 6, zIndex: 60 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div className="assignments-filter-menu">
+                <div className="assignments-filter-menu-inner">
                   <button className="small" onClick={() => { setFilterBy('all'); setShowFilterMenu(false) }}>Todos</button>
                   <button className="small" onClick={() => { setFilterBy('workerAZ'); setShowFilterMenu(false) }}>Trabajador A-Z</button>
                   <button className="small" onClick={() => { setFilterBy('vehicleAZ'); setShowFilterMenu(false) }}>Vehículo A-Z</button>
@@ -609,7 +642,7 @@ export default function AssignmentsScreen() {
       {/* Mensaje removido: la lista de asignaciones se mostrará usando `vehiclesList` o `items` como fallback */}
       <div className="assignments-grid">
         {(() => {
-          const map = new Map<string, { role?: string; name?: string; plate?: string; assignmentSummary?: string; workerObj?: any }>()
+          const map = new Map<string, { role?: string; name?: string; plate?: string; assignmentSummary?: string; workerObj?: any; photoUrl?: string }>()
 
           // First, try to build entries from vehiclesList when available
           if (vehiclesList && vehiclesList.length > 0) {
@@ -635,7 +668,8 @@ export default function AssignmentsScreen() {
               const role = (worker && worker.role) || (aw && aw.role) || 'Empleado'
               const plate = v.licensePlate || v.plate || v.plateNumber || ''
               const summary = plate ? `Vehículo: ${plate}` : ''
-              map.set(key, { role, name, plate, assignmentSummary: summary, workerObj: worker || aw || null })
+              const photoUrl = (worker && worker.photoUrl) || (aw && aw.photoUrl) || undefined
+              map.set(key, { role, name, plate, assignmentSummary: summary, workerObj: worker || aw || null, photoUrl })
             })
           }
 
@@ -650,7 +684,8 @@ export default function AssignmentsScreen() {
             const role = (asg && asg.role) || 'Empleado'
             const plate = (a as any).vehicle ? ((a as any).vehicle.licensePlate || (a as any).vehicle.plate || '') : ''
             const summary = plate ? `Vehículo: ${plate}` : ''
-            map.set(key, { role, name, plate, assignmentSummary: summary, workerObj: asg || null })
+            const photoUrl = (asg && typeof asg === 'object' && asg.photoUrl) || undefined
+            map.set(key, { role, name, plate, assignmentSummary: summary, workerObj: asg || null, photoUrl })
           })
 
           // Convert map to array and apply ordering according to `filterBy`
@@ -668,18 +703,41 @@ export default function AssignmentsScreen() {
             })
           }
 
-          return entries.map(e => (
-            <div key={e.key} className="assignment-card">
-              <div className="card-header">{e.val.role}</div>
-              <div className="card-body">
-                <div className="card-name">{e.val.name}</div>
-                {e.val.plate && <div className="card-plate">{e.val.plate}</div>}
-                <div style={{ marginTop: 12 }}>
-                  <button className="small" onClick={async () => await openWorkerDetail(e.val.workerObj || null, e.key, e.val.name, e.val.role, e.val.plate)}>Ver mas</button>
+          return entries.map(e => {
+            // Fallback para obtener foto desde workersList si el mapa no la trae
+            const fallbackWorker = (workersList || []).find((w:any) => {
+              const wid = w.id || w._id || w.email
+              return wid && String(wid) === String(e.key)
+            })
+            const photoUrlFinal = (e.val.photoUrl && typeof e.val.photoUrl === 'string' && e.val.photoUrl.trim() !== '')
+              ? e.val.photoUrl
+              : (fallbackWorker && typeof fallbackWorker.photoUrl === 'string' && fallbackWorker.photoUrl.trim() !== ''
+                ? fallbackWorker.photoUrl
+                : undefined)
+
+            return (
+              <div key={e.key} className="assignment-card">
+                <div className="card-header">{e.val.role}</div>
+                <div className="card-body">
+                  {photoUrlFinal && (
+                    <div style={{ textAlign: 'center', marginBottom: 8 }}>
+                      <img
+                        src={photoUrlFinal}
+                        alt={String(e.val.name || '')}
+                        className="assignments-card-photo"
+                        onError={(ev) => { (ev.target as any).style.display = 'none' }}
+                      />
+                    </div>
+                  )}
+                  <div className="card-name">{e.val.name}</div>
+                  {e.val.plate && <div className="card-plate">{e.val.plate}</div>}
+                  <div style={{ marginTop: 12 }}>
+                    <button className="small" onClick={async () => await openWorkerDetail(e.val.workerObj || null, e.key, e.val.name, e.val.role, e.val.plate)}>Ver mas</button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            )
+          })
         })()}
       </div>
 
@@ -690,17 +748,57 @@ export default function AssignmentsScreen() {
               <>
                 {loadingWorkerDetail ? (
                   <div style={{ padding: 16, textAlign: 'center' }}>Cargando datos…</div>
-                ) : (
-                  typeof workerDetail.photoUrl === 'string' && workerDetail.photoUrl.trim() !== '' && (
-                  <div style={{ textAlign: 'center', marginBottom: 8 }}>
-                    <img src={workerDetail.photoUrl} alt={String(workerDetail.name || '')} style={{ maxWidth: 160, borderRadius: 8 }} />
-                  </div>
-                  )
-                )}
+                ) : null}
                 {!loadingWorkerDetail && (
                   <>
-                    <h4>{[workerDetail.name, (workerDetail as any).secondName, (workerDetail as any).lastname].filter(Boolean).join(' ') || (workerDetail.email || '—')}</h4>
-                    <p><strong>Rol:</strong> {renderVal(workerDetail.role)}</p>
+                    <div className="assignments-modal-center-block">
+                      <h4 className="assignments-modal-title">{[workerDetail.name, (workerDetail as any).secondName, (workerDetail as any).lastname].filter(Boolean).join(' ') || (workerDetail.email || '—')}</h4>
+                      {(() => {
+                        const computedRole = (workerDetail as any).role
+                          || (() => {
+                            // intenta obtener rol desde workersList por id/email
+                            const wid = (workerDetail as any).id || (workerDetail as any)._id || (workerDetail as any).email
+                            const found = (workersList || []).find((w:any) => String(w.id || w._id || w.email) === String(wid))
+                            return found ? found.role : undefined
+                          })()
+                          || (() => {
+                            // intenta obtener rol desde las asignaciones actuales
+                            const wid = (workerDetail as any).id || (workerDetail as any)._id || (workerDetail as any).email
+                            const assignment = items.find(a => {
+                              const asg: any = (a as any).assignedTo || null
+                              const awId = asg && (typeof asg === 'string' ? asg : (asg.id || asg._id || asg.email))
+                              return awId && String(awId) === String(wid)
+                            })
+                            const asg: any = assignment ? (assignment as any).assignedTo : null
+                            return asg && typeof asg === 'object' ? asg.role : undefined
+                          })()
+                        return <p className="assignments-modal-role"><strong>Rol:</strong> {renderVal(computedRole ?? 'Empleado')}</p>
+                      })()}
+                      {(() => {
+                        const wid = (workerDetail as any).id || (workerDetail as any)._id || (workerDetail as any).email
+                        const fromDetail = (typeof (workerDetail as any).photoUrl === 'string' && (workerDetail as any).photoUrl.trim() !== '') ? (workerDetail as any).photoUrl : undefined
+                        const fromWorkersList = (() => {
+                          const found = (workersList || []).find((w:any) => String(w.id || w._id || w.email) === String(wid))
+                          return (found && typeof found.photoUrl === 'string' && found.photoUrl.trim() !== '') ? found.photoUrl : undefined
+                        })()
+                        const fromAssignments = (() => {
+                          const assignment = items.find(a => {
+                            const asg: any = (a as any).assignedTo || null
+                            const awId = asg && (typeof asg === 'string' ? asg : (asg.id || asg._id || asg.email))
+                            return awId && String(awId) === String(wid)
+                          })
+                          const asg: any = assignment ? (assignment as any).assignedTo : null
+                          const p = (asg && typeof asg === 'object' && typeof asg.photoUrl === 'string' && asg.photoUrl.trim() !== '') ? asg.photoUrl : undefined
+                          return p
+                        })()
+                        const photoUrlFinal = fromDetail || fromWorkersList || fromAssignments
+                        return photoUrlFinal ? (
+                          <div className="assignments-modal-photo">
+                            <img src={photoUrlFinal} alt={String(workerDetail.name || '')} />
+                          </div>
+                        ) : null
+                      })()}
+                    </div>
 
                     {!editAssignmentMode && (() => {
                       const wid = (workerDetail as any).id || (workerDetail as any)._id || (workerDetail as any).email
@@ -714,10 +812,12 @@ export default function AssignmentsScreen() {
                       const assignVehicle = assignment && (assignment as any).vehicle ? (((assignment as any).vehicle.licensePlate || (assignment as any).vehicle.plate || (assignment as any).vehicle.plateNumber) || '—') : 'Sin asignación'
                       const assignId = assignment ? (assignment as any).id || (assignment as any)._id || '—' : '—'
                       return (
-                        <div>
+                        <div className="assignments-modal-assignment-summary">
                           <p><strong>Estado de la asignación:</strong> {assignStatus}</p>
-                          <p><strong>Asignación:</strong> {assignVehicle} {assignId ? (<span style={{ color: '#666', fontSize: 12 }}> (ID: {assignId})</span>) : null}</p>
-                          <p><strong>ID del empleado:</strong> {renderVal(wid)}</p>
+                          <p>
+                            <strong>Asignación:</strong> {assignVehicle} {assignId ? (<span className="meta"> (ID: {assignId})</span>) : null}
+                          </p>
+                          <p className="meta"><strong>ID del empleado:</strong> {renderVal(wid)}</p>
                         </div>
                       )
                     })()}
@@ -733,14 +833,16 @@ export default function AssignmentsScreen() {
                       const assignVehicle = assignment && (assignment as any).vehicle ? (((assignment as any).vehicle.licensePlate || (assignment as any).vehicle.plate || (assignment as any).vehicle.plateNumber) || '—') : 'Sin asignación'
                       const assignId = assignment ? (assignment as any).id || (assignment as any)._id || '—' : '—'
                       return (
-                        <div>
-                          <p><strong>Asignación:</strong> {assignVehicle} {assignId ? (<span style={{ color: '#666', fontSize: 12 }}> (ID: {assignId})</span>) : null}</p>
-                          <label style={{ display: 'block', marginTop: 8 }}>
+                        <div className="assignments-modal-assignment-summary">
+                          <p>
+                            <strong>Asignación:</strong> {assignVehicle} {assignId ? (<span className="meta"> (ID: {assignId})</span>) : null}
+                          </p>
+                          <label className="assignments-modal-select-label">
                             <strong>Nuevo estado:</strong>
                             <select
                               value={editAssignmentStatus}
                               onChange={e => setEditAssignmentStatus(e.target.value)}
-                              style={{ width: '100%', padding: 6, marginTop: 4 }}
+                              className="assignments-modal-select"
                             >
                               <option value="">Selecciona un estado</option>
                               <option value="not_started">No iniciado</option>
@@ -749,12 +851,12 @@ export default function AssignmentsScreen() {
                               <option value="on_hold">En pausa</option>
                             </select>
                           </label>
-                          <p><strong>ID del empleado:</strong> {renderVal(wid)}</p>
+                          <p className="meta"><strong>ID del empleado:</strong> {renderVal(wid)}</p>
                         </div>
                       )
                     })()}
 
-                    <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                    <div className="assignments-modal-actions">
                       {!editAssignmentMode ? (
                         <>
                           <button className="card-button" onClick={() => {
@@ -772,6 +874,22 @@ export default function AssignmentsScreen() {
                               alert('No hay asignación para este trabajador')
                             }
                           }}>Actualizar</button>
+                          {canManage && (
+                            <button className="danger-btn" onClick={async () => {
+                              const wid = (workerDetail as any).id || (workerDetail as any)._id || (workerDetail as any).email
+                              const assignment = items.find(a => {
+                                const asg: any = (a as any).assignedTo || null
+                                const awId = asg && (typeof asg === 'string' ? asg : (asg.id || asg._id || asg.email))
+                                if (!awId) return false
+                                return String(awId) === String(wid)
+                              }) as any
+                              if (!assignment) {
+                                alert('No se encontró una asignación para este trabajador')
+                                return
+                              }
+                              await handleDelete(String(assignment.id))
+                            }}>Eliminar asignación</button>
+                          )}
                           <button className="close-btn" onClick={() => { setWorkerDetail(null); setEditModeWorker(false); setCreatingWorker(false) }}>Cerrar</button>
                         </>
                       ) : (
@@ -790,7 +908,6 @@ export default function AssignmentsScreen() {
                             }
                             try {
                               await handleUpdate((assignment as any).id, { progressStatus: editAssignmentStatus } as any)
-                              alert('Asignación actualizada correctamente')
                               setEditAssignmentMode(false)
                               await load()
                             } catch (e: any) {
@@ -856,7 +973,7 @@ export default function AssignmentsScreen() {
                   </label>
                 </div>
 
-                <div className="modal-actions">
+                <div className="modal-actions assignments-modal-actions">
                   <>
                     <button className="card-button" onClick={async () => {
                       if (!workerDetail) return
@@ -905,7 +1022,7 @@ export default function AssignmentsScreen() {
         <div className="report-detail-modal" onClick={() => setCreating(false)}>
           <div className="report-detail-card" onClick={(e) => e.stopPropagation()}>
             <h3>Nueva asignación</h3>
-                <div style={{ display: 'grid', gap: 8 }}>
+              <div className="assignments-create-grid">
 
                   {/* Step: select worker */}
                   {createStep === 'selectWorker' && (
@@ -913,7 +1030,7 @@ export default function AssignmentsScreen() {
                       <div style={{ marginBottom: 8, fontWeight: 600 }}>Selecciona un trabajador</div>
                       {createLoadingWorkers && <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>Cargando trabajadores…</div>}
                       {!createLoadingWorkers && workersList.length === 0 && <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>No se han encontrado trabajadores.</div>}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 8 }}>
+                      <div className="assignments-select-grid">
                         {workersList.map((w:any) => {
                           const assignedVeh = findAssignedVehicleFor(w)
                           const isAssigned = !!assignedVeh
@@ -929,22 +1046,15 @@ export default function AssignmentsScreen() {
                                 setSelectedWorker(w)
                                 setSelectedVehicle(assignedVeh || null)
                               }}
-                              style={{
-                                padding: 8,
-                                border: isSelected ? '2px solid #0b4ea2' : '1px solid #e6e9ee',
-                                borderRadius: 6,
-                                cursor: isAssigned ? 'not-allowed' : 'pointer',
-                                opacity: isAssigned ? 0.6 : 1,
-                                position: 'relative'
-                              }}
+                              className={`assignments-select-card${isSelected ? ' selected' : ''}${isAssigned ? ' disabled' : ''}`}
                               aria-disabled={isAssigned}
                             >
-                              <div style={{ fontWeight: 700 }}>{w.name || w.nombre || w.email}</div>
-                              <div style={{ fontSize: 12, color: '#666' }}>{w.email || ''}{w.role ? ` · ${String(w.role)}` : ''}</div>
+                              <div className="assignments-select-card-title">{w.name || w.nombre || w.email}</div>
+                              <div className="assignments-select-card-subtitle">{w.email || ''}{w.role ? ` · ${String(w.role)}` : ''}</div>
                               {assignedVeh ? (
-                                <div style={{ marginTop: 6, fontSize: 12, color: '#0b4ea2' }}>Vehículo asignado: {assignedVeh.licensePlate || assignedVeh.plate || assignedVeh.plateNumber || '—'}</div>
+                                <div className="assignments-select-card-note assigned">Vehículo asignado: {assignedVeh.licensePlate || assignedVeh.plate || assignedVeh.plateNumber || '—'}</div>
                               ) : (
-                                <div style={{ marginTop: 6, fontSize: 12, color: '#999' }}>Vehículo sin asignar</div>
+                                <div className="assignments-select-card-note">Vehículo sin asignar</div>
                               )}
                             </div>
                           )
@@ -960,7 +1070,7 @@ export default function AssignmentsScreen() {
                       <div style={{ marginBottom: 8, fontWeight: 600 }}>Selecciona un vehículo</div>
                       {createLoadingVehicles && <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>Cargando vehículos…</div>}
                       {!createLoadingVehicles && vehiclesList.length === 0 && <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>No hay vehículos disponibles.</div>}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 8 }}>
+                      <div className="assignments-select-grid">
                         {vehiclesList.map((v:any) => {
                           const assignedWorker = findAssignedWorkerForVehicle(v)
                           const isAssigned = !!assignedWorker
@@ -976,22 +1086,15 @@ export default function AssignmentsScreen() {
                                 }
                                 setSelectedVehicle(v)
                               }}
-                              style={{
-                                padding: 8,
-                                border: isSelected ? '2px solid #0b4ea2' : '1px solid #e6e9ee',
-                                borderRadius: 6,
-                                cursor: isAssigned ? 'not-allowed' : 'pointer',
-                                opacity: isAssigned ? 0.6 : 1,
-                                position: 'relative'
-                              }}
+                              className={`assignments-select-card${isSelected ? ' selected' : ''}${isAssigned ? ' disabled' : ''}`}
                               aria-disabled={isAssigned}
                             >
-                              <div style={{ fontWeight: 700 }}>{v.licensePlate || v.plate || v.plateNumber}</div>
-                              <div style={{ fontSize: 12, color: '#666' }}>{v.model || v.brand || ''}</div>
+                              <div className="assignments-select-card-title">{v.licensePlate || v.plate || v.plateNumber}</div>
+                              <div className="assignments-select-card-subtitle">{v.model || v.brand || ''}</div>
                               {isAssigned ? (
-                                <div style={{ marginTop: 6, fontSize: 12, color: '#0b4ea2' }}>Asignado a: {(assignedWorker && (assignedWorker.name || assignedWorker.email || assignedWorker.id)) || '—'}</div>
+                                <div className="assignments-select-card-note assigned">Asignado a: {(assignedWorker && (assignedWorker.name || assignedWorker.email || assignedWorker.id)) || '—'}</div>
                               ) : (
-                                <div style={{ marginTop: 6, fontSize: 12, color: '#999' }}>Disponible</div>
+                                <div className="assignments-select-card-note">Disponible</div>
                               )}
                             </div>
                           )
@@ -1003,7 +1106,7 @@ export default function AssignmentsScreen() {
                   {/* scheduled date removed per request */}
                 </div>
 
-                <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <div className="assignments-create-footer">
                   <button className="small" onClick={() => setCreating(false)} disabled={submitting}>Cancelar</button>
                   {createStep === 'selectWorker' && (
                     <button className="small" onClick={async () => {
@@ -1057,7 +1160,7 @@ export default function AssignmentsScreen() {
               {selected.scheduledAt && <div style={{ marginTop: 8 }}><strong>Programada:</strong> {formatDate(selected.scheduledAt)}</div>}
             </div>
 
-            <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <div className="assignments-detail-footer">
               <button className="small" onClick={() => setSelected(null)}>Cerrar</button>
               {/* Worker actions */}
               {String(user.role || '').toLowerCase() === 'worker' && (
@@ -1074,7 +1177,12 @@ export default function AssignmentsScreen() {
                     const next = selected.status === 'pending' ? 'in_progress' : selected.status === 'in_progress' ? 'completed' : 'pending'
                     await handleUpdate(selected.id, { status: next })
                   }}>Cambiar estado</button>
-                  {selected.status !== 'in_progress' && <button className="small" onClick={async () => await handleDelete(selected.id)}>Eliminar</button>}
+                  <button
+                    className="small"
+                    onClick={async () => await handleDelete(selected.id)}
+                  >
+                    Eliminar
+                  </button>
                 </>
               )}
             </div>

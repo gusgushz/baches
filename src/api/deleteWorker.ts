@@ -1,5 +1,4 @@
-// src/api/deleteWorker.ts
-const DEFAULT_URL = 'https://baches-yucatan.onrender.com/api/workers' // corregido: usar mismo dominio con guion
+const DEFAULT_URL = 'https://baches-yucatan.onrender.com/api/workers' 
 
 const deleteWorker = async (id: string, token?: string): Promise<any> => {
   if (!id) throw new Error('deleteWorker: id is required')
