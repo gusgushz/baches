@@ -28,3 +28,41 @@
 @media (max-width:600px){
   .assignments-grid{grid-template-columns:repeat(2,1fr)}
 }
+
+/* ------- Modales / layouts específicos de Assignments ------- */
+
+.assignments-filter-wrapper{position:relative;display:flex;gap:8px}
+.assignments-filter-menu{position:absolute;top:calc(100% + 6px);left:0;background:#fff;border:1px solid #e6e9ee;padding:8px;border-radius:6px;z-index:60}
+.assignments-filter-menu-inner{display:flex;flex-direction:column;gap:6px}
+
+.assignments-card-photo{width:100px;height:100px;border-radius:8px;object-fit:cover}
+
+.assignments-modal-center-block{text-align:center;margin-bottom:12px}
+.assignments-modal-title{margin:0}
+.assignments-modal-role{margin:6px 0;color:#555}
+.assignments-modal-photo{margin-top:8px}
+.assignments-modal-photo img{width:160px;height:160px;border-radius:12px;object-fit:cover}
+
+.assignments-modal-assignment-summary{text-align:center}
+.assignments-modal-assignment-summary p{margin:4px 0}
+.assignments-modal-assignment-summary p.meta{color:#666;font-size:12px}
+
+.assignments-modal-select-label{display:block;margin-top:8px}
+.assignments-modal-select{width:100%;padding:6px;margin-top:4px;background:#fff;color:#111;border:1px solid #e6e9ee;border-radius:6px}
+
+.assignments-modal-actions{margin-top:12px;display:flex;justify-content:center;gap:8px}
+
+.assignments-create-grid{display:grid;gap:8px}
+.assignments-select-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}
+
+.assignments-select-card{padding:8px;border:1px solid #e6e9ee;border-radius:6px;cursor:pointer;position:relative}
+.assignments-select-card.selected{border:2px solid #0b4ea2}
+.assignments-select-card.disabled{cursor:not-allowed;opacity:.6}
+.assignments-select-card-title{font-weight:700}
+.assignments-select-card-subtitle{font-size:12px;color:#666}
+.assignments-select-card-note{margin-top:6px;font-size:12px;color:#999}
+.assignments-select-card-note.assigned{color:#0b4ea2}
+
+.assignments-create-footer{margin-top:12px;display:flex;justify-content:center;gap:8px}
+
+.assignments-detail-footer{margin-top:12px;display:flex;justify-content:center;gap:8px}

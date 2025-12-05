@@ -4,6 +4,7 @@ import { updateWorker, deleteWorker } from '../api'
 import './Assignments.css'
 import '../styles/Employees.css'
 import Header from '../components/Header'
+import Swal from 'sweetalert2'
 
 type Assignment = {
   id: string
@@ -228,6 +229,14 @@ export default function AssignmentsScreen() {
       await load()
       setCreating(false)
 
+      await Swal.fire({
+        icon: 'success',
+        title: 'Asignación creada',
+        text: 'La asignación se creó correctamente.',
+        timer: 1400,
+        showConfirmButton: false
+      })
+
     } catch (e: any) {
       console.error("Error creando asignación", e)
       setError(e?.message ?? "No se pudo crear la asignación")
@@ -320,6 +329,14 @@ export default function AssignmentsScreen() {
       await load()
       setSelected(prev => (prev?.id === id ? { ...(prev as any), ...(payload as any) } : prev))
 
+      await Swal.fire({
+        icon: 'success',
+        title: 'Asignación actualizada',
+        text: 'Los cambios se guardaron correctamente.',
+        timer: 1400,
+        showConfirmButton: false
+      })
+
     } catch (error: any) {
       console.error("handleUpdate", error)
       setError(error?.message ?? "No se pudo actualizar")
@@ -349,6 +366,14 @@ export default function AssignmentsScreen() {
       }
       await load()
       setSelected(null)
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'Asignación eliminada',
+        text: 'La asignación se eliminó correctamente.',
+        timer: 1400,
+        showConfirmButton: false
+      })
     } catch (e: any) {
       console.error(e)
       setError(e && e.message ? String(e.message) : 'No se pudo eliminar')
@@ -593,13 +618,13 @@ export default function AssignmentsScreen() {
       <Header
         title="Asignaciones"
         centerSlot={
-          <div style={{ position: 'relative', display: 'flex', gap: 8 }}>
+          <div className="assignments-filter-wrapper">
             <button className="filter-btn" onClick={() => setShowFilterMenu(s => !s)}>
               {filterBy === 'all' ? 'Filtrar' : filterBy === 'workerAZ' ? 'Trabajador A-Z' : 'Vehículo A-Z'}
             </button>
             {showFilterMenu && (
-              <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, background: '#fff', border: '1px solid #e6e9ee', padding: 8, borderRadius: 6, zIndex: 60 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div className="assignments-filter-menu">
+                <div className="assignments-filter-menu-inner">
                   <button className="small" onClick={() => { setFilterBy('all'); setShowFilterMenu(false) }}>Todos</button>
                   <button className="small" onClick={() => { setFilterBy('workerAZ'); setShowFilterMenu(false) }}>Trabajador A-Z</button>
                   <button className="small" onClick={() => { setFilterBy('vehicleAZ'); setShowFilterMenu(false) }}>Vehículo A-Z</button>
@@ -699,7 +724,7 @@ export default function AssignmentsScreen() {
                       <img
                         src={photoUrlFinal}
                         alt={String(e.val.name || '')}
-                        style={{ width: 100, height: 100, borderRadius: 8, objectFit: 'cover' }}
+                        className="assignments-card-photo"
                         onError={(ev) => { (ev.target as any).style.display = 'none' }}
                       />
                     </div>
@@ -726,8 +751,8 @@ export default function AssignmentsScreen() {
                 ) : null}
                 {!loadingWorkerDetail && (
                   <>
-                    <div style={{ textAlign: 'center', marginBottom: 12 }}>
-                      <h4 style={{ margin: 0 }}>{[workerDetail.name, (workerDetail as any).secondName, (workerDetail as any).lastname].filter(Boolean).join(' ') || (workerDetail.email || '—')}</h4>
+                    <div className="assignments-modal-center-block">
+                      <h4 className="assignments-modal-title">{[workerDetail.name, (workerDetail as any).secondName, (workerDetail as any).lastname].filter(Boolean).join(' ') || (workerDetail.email || '—')}</h4>
                       {(() => {
                         const computedRole = (workerDetail as any).role
                           || (() => {
@@ -747,7 +772,7 @@ export default function AssignmentsScreen() {
                             const asg: any = assignment ? (assignment as any).assignedTo : null
                             return asg && typeof asg === 'object' ? asg.role : undefined
                           })()
-                        return <p style={{ margin: '6px 0', color: '#555' }}><strong>Rol:</strong> {renderVal(computedRole ?? 'Empleado')}</p>
+                        return <p className="assignments-modal-role"><strong>Rol:</strong> {renderVal(computedRole ?? 'Empleado')}</p>
                       })()}
                       {(() => {
                         const wid = (workerDetail as any).id || (workerDetail as any)._id || (workerDetail as any).email
@@ -768,8 +793,8 @@ export default function AssignmentsScreen() {
                         })()
                         const photoUrlFinal = fromDetail || fromWorkersList || fromAssignments
                         return photoUrlFinal ? (
-                          <div style={{ marginTop: 8 }}>
-                            <img src={photoUrlFinal} alt={String(workerDetail.name || '')} style={{ width: 160, height: 160, borderRadius: 12, objectFit: 'cover' }} />
+                          <div className="assignments-modal-photo">
+                            <img src={photoUrlFinal} alt={String(workerDetail.name || '')} />
                           </div>
                         ) : null
                       })()}
@@ -787,10 +812,12 @@ export default function AssignmentsScreen() {
                       const assignVehicle = assignment && (assignment as any).vehicle ? (((assignment as any).vehicle.licensePlate || (assignment as any).vehicle.plate || (assignment as any).vehicle.plateNumber) || '—') : 'Sin asignación'
                       const assignId = assignment ? (assignment as any).id || (assignment as any)._id || '—' : '—'
                       return (
-                        <div style={{ textAlign: 'center' }}>
-                          <p style={{ margin: '4px 0' }}><strong>Estado de la asignación:</strong> {assignStatus}</p>
-                          <p style={{ margin: '4px 0' }}><strong>Asignación:</strong> {assignVehicle} {assignId ? (<span style={{ color: '#666', fontSize: 12 }}> (ID: {assignId})</span>) : null}</p>
-                          <p style={{ margin: '4px 0', color: '#666' }}><strong>ID del empleado:</strong> {renderVal(wid)}</p>
+                        <div className="assignments-modal-assignment-summary">
+                          <p><strong>Estado de la asignación:</strong> {assignStatus}</p>
+                          <p>
+                            <strong>Asignación:</strong> {assignVehicle} {assignId ? (<span className="meta"> (ID: {assignId})</span>) : null}
+                          </p>
+                          <p className="meta"><strong>ID del empleado:</strong> {renderVal(wid)}</p>
                         </div>
                       )
                     })()}
@@ -806,14 +833,16 @@ export default function AssignmentsScreen() {
                       const assignVehicle = assignment && (assignment as any).vehicle ? (((assignment as any).vehicle.licensePlate || (assignment as any).vehicle.plate || (assignment as any).vehicle.plateNumber) || '—') : 'Sin asignación'
                       const assignId = assignment ? (assignment as any).id || (assignment as any)._id || '—' : '—'
                       return (
-                        <div style={{ textAlign: 'center' }}>
-                          <p style={{ margin: '4px 0' }}><strong>Asignación:</strong> {assignVehicle} {assignId ? (<span style={{ color: '#666', fontSize: 12 }}> (ID: {assignId})</span>) : null}</p>
-                          <label style={{ display: 'block', marginTop: 8 }}>
+                        <div className="assignments-modal-assignment-summary">
+                          <p>
+                            <strong>Asignación:</strong> {assignVehicle} {assignId ? (<span className="meta"> (ID: {assignId})</span>) : null}
+                          </p>
+                          <label className="assignments-modal-select-label">
                             <strong>Nuevo estado:</strong>
                             <select
                               value={editAssignmentStatus}
                               onChange={e => setEditAssignmentStatus(e.target.value)}
-                              style={{ width: '100%', padding: 6, marginTop: 4, background: '#fff', color: '#111', border: '1px solid #e6e9ee', borderRadius: 6 }}
+                              className="assignments-modal-select"
                             >
                               <option value="">Selecciona un estado</option>
                               <option value="not_started">No iniciado</option>
@@ -822,12 +851,12 @@ export default function AssignmentsScreen() {
                               <option value="on_hold">En pausa</option>
                             </select>
                           </label>
-                          <p style={{ margin: '4px 0', color: '#666' }}><strong>ID del empleado:</strong> {renderVal(wid)}</p>
+                          <p className="meta"><strong>ID del empleado:</strong> {renderVal(wid)}</p>
                         </div>
                       )
                     })()}
 
-                    <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                    <div className="assignments-modal-actions">
                       {!editAssignmentMode ? (
                         <>
                           <button className="card-button" onClick={() => {
@@ -879,7 +908,6 @@ export default function AssignmentsScreen() {
                             }
                             try {
                               await handleUpdate((assignment as any).id, { progressStatus: editAssignmentStatus } as any)
-                              alert('Asignación actualizada correctamente')
                               setEditAssignmentMode(false)
                               await load()
                             } catch (e: any) {
@@ -945,7 +973,7 @@ export default function AssignmentsScreen() {
                   </label>
                 </div>
 
-                <div className="modal-actions">
+                <div className="modal-actions assignments-modal-actions">
                   <>
                     <button className="card-button" onClick={async () => {
                       if (!workerDetail) return
@@ -994,7 +1022,7 @@ export default function AssignmentsScreen() {
         <div className="report-detail-modal" onClick={() => setCreating(false)}>
           <div className="report-detail-card" onClick={(e) => e.stopPropagation()}>
             <h3>Nueva asignación</h3>
-                <div style={{ display: 'grid', gap: 8 }}>
+              <div className="assignments-create-grid">
 
                   {/* Step: select worker */}
                   {createStep === 'selectWorker' && (
@@ -1002,7 +1030,7 @@ export default function AssignmentsScreen() {
                       <div style={{ marginBottom: 8, fontWeight: 600 }}>Selecciona un trabajador</div>
                       {createLoadingWorkers && <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>Cargando trabajadores…</div>}
                       {!createLoadingWorkers && workersList.length === 0 && <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>No se han encontrado trabajadores.</div>}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 8 }}>
+                      <div className="assignments-select-grid">
                         {workersList.map((w:any) => {
                           const assignedVeh = findAssignedVehicleFor(w)
                           const isAssigned = !!assignedVeh
@@ -1018,22 +1046,15 @@ export default function AssignmentsScreen() {
                                 setSelectedWorker(w)
                                 setSelectedVehicle(assignedVeh || null)
                               }}
-                              style={{
-                                padding: 8,
-                                border: isSelected ? '2px solid #0b4ea2' : '1px solid #e6e9ee',
-                                borderRadius: 6,
-                                cursor: isAssigned ? 'not-allowed' : 'pointer',
-                                opacity: isAssigned ? 0.6 : 1,
-                                position: 'relative'
-                              }}
+                              className={`assignments-select-card${isSelected ? ' selected' : ''}${isAssigned ? ' disabled' : ''}`}
                               aria-disabled={isAssigned}
                             >
-                              <div style={{ fontWeight: 700 }}>{w.name || w.nombre || w.email}</div>
-                              <div style={{ fontSize: 12, color: '#666' }}>{w.email || ''}{w.role ? ` · ${String(w.role)}` : ''}</div>
+                              <div className="assignments-select-card-title">{w.name || w.nombre || w.email}</div>
+                              <div className="assignments-select-card-subtitle">{w.email || ''}{w.role ? ` · ${String(w.role)}` : ''}</div>
                               {assignedVeh ? (
-                                <div style={{ marginTop: 6, fontSize: 12, color: '#0b4ea2' }}>Vehículo asignado: {assignedVeh.licensePlate || assignedVeh.plate || assignedVeh.plateNumber || '—'}</div>
+                                <div className="assignments-select-card-note assigned">Vehículo asignado: {assignedVeh.licensePlate || assignedVeh.plate || assignedVeh.plateNumber || '—'}</div>
                               ) : (
-                                <div style={{ marginTop: 6, fontSize: 12, color: '#999' }}>Vehículo sin asignar</div>
+                                <div className="assignments-select-card-note">Vehículo sin asignar</div>
                               )}
                             </div>
                           )
@@ -1049,7 +1070,7 @@ export default function AssignmentsScreen() {
                       <div style={{ marginBottom: 8, fontWeight: 600 }}>Selecciona un vehículo</div>
                       {createLoadingVehicles && <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>Cargando vehículos…</div>}
                       {!createLoadingVehicles && vehiclesList.length === 0 && <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>No hay vehículos disponibles.</div>}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 8 }}>
+                      <div className="assignments-select-grid">
                         {vehiclesList.map((v:any) => {
                           const assignedWorker = findAssignedWorkerForVehicle(v)
                           const isAssigned = !!assignedWorker
@@ -1065,22 +1086,15 @@ export default function AssignmentsScreen() {
                                 }
                                 setSelectedVehicle(v)
                               }}
-                              style={{
-                                padding: 8,
-                                border: isSelected ? '2px solid #0b4ea2' : '1px solid #e6e9ee',
-                                borderRadius: 6,
-                                cursor: isAssigned ? 'not-allowed' : 'pointer',
-                                opacity: isAssigned ? 0.6 : 1,
-                                position: 'relative'
-                              }}
+                              className={`assignments-select-card${isSelected ? ' selected' : ''}${isAssigned ? ' disabled' : ''}`}
                               aria-disabled={isAssigned}
                             >
-                              <div style={{ fontWeight: 700 }}>{v.licensePlate || v.plate || v.plateNumber}</div>
-                              <div style={{ fontSize: 12, color: '#666' }}>{v.model || v.brand || ''}</div>
+                              <div className="assignments-select-card-title">{v.licensePlate || v.plate || v.plateNumber}</div>
+                              <div className="assignments-select-card-subtitle">{v.model || v.brand || ''}</div>
                               {isAssigned ? (
-                                <div style={{ marginTop: 6, fontSize: 12, color: '#0b4ea2' }}>Asignado a: {(assignedWorker && (assignedWorker.name || assignedWorker.email || assignedWorker.id)) || '—'}</div>
+                                <div className="assignments-select-card-note assigned">Asignado a: {(assignedWorker && (assignedWorker.name || assignedWorker.email || assignedWorker.id)) || '—'}</div>
                               ) : (
-                                <div style={{ marginTop: 6, fontSize: 12, color: '#999' }}>Disponible</div>
+                                <div className="assignments-select-card-note">Disponible</div>
                               )}
                             </div>
                           )
@@ -1092,7 +1106,7 @@ export default function AssignmentsScreen() {
                   {/* scheduled date removed per request */}
                 </div>
 
-                <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <div className="assignments-create-footer">
                   <button className="small" onClick={() => setCreating(false)} disabled={submitting}>Cancelar</button>
                   {createStep === 'selectWorker' && (
                     <button className="small" onClick={async () => {
@@ -1146,7 +1160,7 @@ export default function AssignmentsScreen() {
               {selected.scheduledAt && <div style={{ marginTop: 8 }}><strong>Programada:</strong> {formatDate(selected.scheduledAt)}</div>}
             </div>
 
-            <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <div className="assignments-detail-footer">
               <button className="small" onClick={() => setSelected(null)}>Cerrar</button>
               {/* Worker actions */}
               {String(user.role || '').toLowerCase() === 'worker' && (

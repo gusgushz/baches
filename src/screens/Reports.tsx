@@ -5,6 +5,8 @@ import 'leaflet/dist/leaflet.css'
 import './Reports.css'
 import { useAuth } from '../contexts/AuthContext'
 import Header from '../components/Header';
+import Swal from 'sweetalert2'
+import { CheckCircle2, Trash2 } from 'lucide-react'
 
 type Location = { lat: number; lng: number }
 
@@ -461,7 +463,11 @@ function MapController({ selected }: { selected: DetailedReport | null }) {
     const lng = selected.location.lng
     try {
       map.flyTo([lat, lng], 15, { duration: 0.6 })
-      const html = `<div style="min-width:200px"><strong>${mapSeverity(selected.severity)}</strong><div>${String(selected.description || '')}</div><div style="font-size:12px;color:#666">${formatDate(selected.createdAt)}</div></div>`
+      const firstImg = selected.images && selected.images[0]
+      const imgHtml = firstImg
+        ? `<div style="margin-top:6px"><img src="${getImageSrc(firstImg)}" style="width:100%;max-height:120px;object-fit:cover;border-radius:6px"/></div>`
+        : ''
+      const html = `<div style="min-width:200px"><strong>${mapSeverity(selected.severity)}</strong><div>${String(selected.description || '')}</div>${imgHtml}<div style="font-size:12px;color:#666">${formatDate(selected.createdAt)}</div></div>`
       L.popup({ maxWidth: 320, offset: [0, -10] }).setLatLng([lat, lng]).setContent(html).openOn(map)
     } catch (e) {
       /* ignore map errors */
@@ -475,6 +481,7 @@ export default function ReportsScreen() {
   const [reports, setReports] = useState<DetailedReport[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedReport, setSelectedReport] = useState<DetailedReport | null>(null)
+  const [search, setSearch] = useState('')
   
   const handleEdit = async (id: string, payload: Partial<DetailedReport>) => {
     try {
@@ -536,6 +543,15 @@ export default function ReportsScreen() {
       }
 
       await loadReports()
+
+      // Animación de éxito al editar
+      await Swal.fire({
+        icon: 'success',
+        title: 'Reporte actualizado',
+        text: 'Los cambios se guardaron correctamente.',
+        timer: 1400,
+        showConfirmButton: false
+      })
 
     } catch (e) {
       console.error('Error editando reporte', e)
@@ -635,22 +651,59 @@ export default function ReportsScreen() {
       if (!res.ok) throw new Error(`Status ${res.status}`)
       await loadReports()
       setSelectedReport(prev => (prev && prev.id === id ? null : prev))
+
+      // Animación de éxito al eliminar
+      await Swal.fire({
+        icon: 'success',
+        title: 'Reporte eliminado',
+        text: 'El reporte se eliminó correctamente.',
+        timer: 1400,
+        showConfirmButton: false
+      })
     } catch (e) {
       throw e
     }
   }
 
+  // Aplica búsqueda por texto sobre descripción, dirección, trabajador y vehículo
+  const visibleReports = reports.filter(r => {
+    const q = search.trim().toLowerCase()
+    if (!q) return true
+    const description = (r.description || '').toString().toLowerCase()
+    const address = [r.street, r.neighborhood, r.city, r.state, r.postalCode]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    const worker = ((r.reportedByWorker?.name || '') + ' ' + (r.reportedByWorker?.lastname || '') + ' ' + (r.reportedByWorker?.email || ''))
+      .toLowerCase()
+    const vehicle = ((r.reportedByVehicle?.licensePlate || r.reportedByVehicle?.plate || '') + ' ' + (r.reportedByVehicle?.model || '') + ' ' + (r.reportedByVehicle?.brand || ''))
+      .toLowerCase()
+    return (
+      description.includes(q) ||
+      address.includes(q) ||
+      worker.includes(q) ||
+      vehicle.includes(q)
+    )
+  })
+
   return (
     <div className="page">
       <Header
         title="Reportes"
-        centerSlot={<input placeholder="Buscar reportes..." style={{ padding: 8, border: '1px solid #e5e7eb', borderRadius: 8 }} />}
+        centerSlot={
+          <input
+            placeholder="Buscar reportes..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ padding: 8, border: '1px solid #e5e7eb', borderRadius: 8 }}
+          />
+        }
         rightSlot={null}
       />
       {loading && <p>Cargando...</p>}
       <div className="report-section">
         <div className="report-list-column">
-          {!loading && <ReportList reports={reports} onDelete={handleDelete} onSelect={setSelectedReport} onEdit={handleEdit} />}
+          {!loading && <ReportList reports={visibleReports} onDelete={handleDelete} onSelect={setSelectedReport} onEdit={handleEdit} />}
         </div>
 
         <div className="report-map-column">
@@ -670,13 +723,22 @@ export default function ReportsScreen() {
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
                 <MapResizeFix />
                 <MapController selected={selectedReport} />
-                {reports.map((r) => (
+                {visibleReports.map((r) => (
                   r.location ? (
                     <Marker key={r.id} position={[r.location.lat, r.location.lng]} eventHandlers={{ click: () => setSelectedReport(r) }}>
                       <Popup>
                         <div style={{ minWidth: 200 }}>
-                          <strong>{r.severity}</strong>
+                          <strong>{mapSeverity(r.severity)}</strong>
                           <div>{r.description}</div>
+                          {r.images && r.images.length > 0 && (
+                            <div style={{ marginTop: 8 }}>
+                              <img
+                                src={getImageSrc(r.images[0])}
+                                alt="preview"
+                                style={{ width: '100%', maxHeight: 120, objectFit: 'cover', borderRadius: 6 }}
+                              />
+                            </div>
+                          )}
                           <div style={{ fontSize: 12, color: '#666' }}>{formatDate(r.createdAt)}</div>
                         </div>
                       </Popup>
