@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { updateWorker, deleteWorker } from '../api'
 import './Assignments.css'
-import './Employees.css'
+import '../styles/Employees.css'
 import Header from '../components/Header'
 
 type Assignment = {
